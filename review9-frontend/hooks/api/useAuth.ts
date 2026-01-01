@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { useStore } from '@/store/useStore';
 import { authApi, billingApi } from '@/services/api';
 import { UserRole, SubscriptionPlan } from '@/types';
@@ -10,7 +10,11 @@ import { UserRole, SubscriptionPlan } from '@/types';
 export const useAuth = () => {
     const { user, setUser, clearAuth } = useStore();
     const router = useRouter();
+    const pathname = usePathname();
     const queryClient = useQueryClient();
+
+    // Don't fetch profile on auth pages to prevent infinite redirect loop
+    const isAuthPage = pathname === '/login' || pathname === '/register';
 
     // Profile query - this will check if user is authenticated via cookie
     const { data: profileData, isLoading: isLoadingProfile } = useQuery({
@@ -24,6 +28,7 @@ export const useAuth = () => {
                 return null;
             }
         },
+        enabled: !isAuthPage, // Only fetch when NOT on auth pages
         staleTime: 5 * 60 * 1000, // 5 minutes
         retry: false,
     });

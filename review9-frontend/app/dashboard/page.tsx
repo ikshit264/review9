@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useStore } from '@/store/useStore';
+import { useAuth } from '@/hooks/api/useAuth';
 import { Button, Card } from '@/components/UI';
 import { UserRole, SubscriptionPlan, ProctoringSettings } from '@/types';
 import { JobCard } from '@/components/dashboard/JobCard';
@@ -12,7 +13,8 @@ import { useDashboardPageApi } from '@/hooks/api/useDashboardPageApi';
 import { useToast } from '@/hooks/useToast';
 
 export default function Dashboard() {
-  const { user, logout } = useStore();
+  const { user } = useStore();
+  const { logout } = useAuth();
   const router = useRouter();
   const toast = useToast();
   const [isJobModalOpen, setIsJobModalOpen] = useState(false);
