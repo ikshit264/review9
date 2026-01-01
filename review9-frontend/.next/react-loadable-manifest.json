@@ -1,0 +1,14 @@
+{
+  "app\\[companyName]\\[jobId]\\page.tsx -> @/services/api": {
+    "id": "app\\[companyName]\\[jobId]\\page.tsx -> @/services/api",
+    "files": []
+  },
+  "app\\[companyName]\\[jobId]\\responses\\page.tsx -> @/services/api": {
+    "id": "app\\[companyName]\\[jobId]\\responses\\page.tsx -> @/services/api",
+    "files": []
+  },
+  "app\\dashboard\\page.tsx -> @/services/api": {
+    "id": "app\\dashboard\\page.tsx -> @/services/api",
+    "files": []
+  }
+}
