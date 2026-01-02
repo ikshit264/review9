@@ -31,6 +31,7 @@ export default function ProfilePage() {
    const searchParams = useSearchParams();
    const toast = useToast();
    const { user, updateUser } = useStore();
+   const companyId = searchParams.get('companyId') || searchParams.get('companyid') || undefined;
    const [saving, setSaving] = useState(false);
    const [error, setError] = useState<string | null>(null);
    const [detecting, setDetecting] = useState(false);
@@ -47,12 +48,6 @@ export default function ProfilePage() {
    });
 
    const isMandatoryMode = searchParams.get('mandatory') === 'true' || !user?.isProfileComplete;
-
-   useEffect(() => {
-      if (!user) {
-         router.push('/login');
-      }
-   }, [user, router]);
 
    if (!user) return null;
 
@@ -100,20 +95,20 @@ export default function ProfilePage() {
       }
    };
 
-    const handleUpdatePlan = async (plan: SubscriptionPlan) => {
-        if (plan === user.plan) return;
-        
-        try {
-           toast.info(`Requesting ${plan} upgrade...`);
-           
-           const result = await billingApi.subscribe(plan);
-           
-           updateUser({ ...user, plan });
-           toast.success(result.message || `Upgraded to ${plan}!`);
-        } catch (err: any) {
-            toast.error(err.message || "Upgrade failed. You might need to contact support.");
-        }
-    };
+   const handleUpdatePlan = async (plan: SubscriptionPlan) => {
+      if (plan === user.plan) return;
+
+      try {
+         toast.info(`Requesting ${plan} upgrade...`);
+
+         const result = await billingApi.subscribe(plan);
+
+         updateUser({ ...user, plan });
+         toast.success(result.message || `Upgraded to ${plan}!`);
+      } catch (err: any) {
+         toast.error(err.message || "Upgrade failed. You might need to contact support.");
+      }
+   };
 
    const plans = [
       {

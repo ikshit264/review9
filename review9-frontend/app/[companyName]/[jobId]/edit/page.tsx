@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useStore } from '@/store/useStore';
 import { JobDetailLayout } from '@/components/JobDetailLayout';
 import { Card, Input, Button, LoadingButton } from '@/components/UI';
@@ -26,10 +26,12 @@ const ToggleRow = ({ label, enabled, onClick, locked }: { label: string; enabled
 export default function JobEdit() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const companyId = searchParams.get('companyId') || searchParams.get('companyid') || undefined;
   const jobId = params.jobId as string;
   const companyName = params.companyName as string;
   const { user } = useStore();
-  const { useJobQuery } = useJobApi(jobId);
+  const { useJobQuery } = useJobApi(jobId, companyId);
   const { data: backendJob, isLoading, refetch } = useJobQuery();
 
   const job = backendJob;
@@ -103,7 +105,7 @@ export default function JobEdit() {
         ...proctoring,
         customQuestions: filteredQuestions.length > 0 ? filteredQuestions : undefined,
         aiSpecificRequirements: aiRequirements.trim() || undefined,
-      });
+      }, companyId);
 
       // Refetch job data to get updated values
       await refetch();

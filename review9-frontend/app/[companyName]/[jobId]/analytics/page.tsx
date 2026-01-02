@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import { useStore } from '@/store/useStore';
 import { JobDetailLayout } from '@/components/JobDetailLayout';
 import { Card, Skeleton } from '@/components/UI';
@@ -10,10 +10,12 @@ import { SubscriptionPlan } from '@/types';
 
 export default function JobAnalytics() {
   const params = useParams();
+  const searchParams = useSearchParams();
+  const companyId = searchParams.get('companyId') || searchParams.get('companyid') || undefined;
   const jobId = params.jobId as string;
   const companyName = params.companyName as string;
   const { user } = useStore();
-  const { useJobQuery, useJobAnalytics } = useJobApi(jobId);
+  const { useJobQuery, useJobAnalytics } = useJobApi(jobId, companyId);
   const { data: backendJob, isLoading: jobLoading } = useJobQuery();
   const { data: analytics, isLoading: analyticsLoading } = useJobAnalytics();
 

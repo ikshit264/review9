@@ -36,7 +36,10 @@ export const useAuth = () => {
     // Sync profile data to store when it changes
     useEffect(() => {
         if (profileData && profileData.id !== user?.id) {
-            const userRole = profileData.role === 'COMPANY' ? UserRole.COMPANY : UserRole.CANDIDATE;
+            let userRole = UserRole.CANDIDATE;
+            if (profileData.role === 'COMPANY') userRole = UserRole.COMPANY;
+            else if (profileData.role === 'ADMIN') userRole = UserRole.ADMIN;
+
             const userPlan = profileData.plan
                 ? (SubscriptionPlan[profileData.plan as keyof typeof SubscriptionPlan] || SubscriptionPlan.FREE)
                 : undefined;
@@ -71,7 +74,10 @@ export const useAuth = () => {
             return authApi.login(credentials);
         },
         onSuccess: (data) => {
-            const userRole = data.user.role === 'COMPANY' ? UserRole.COMPANY : UserRole.CANDIDATE;
+            let userRole = UserRole.CANDIDATE;
+            if (data.user.role === 'COMPANY') userRole = UserRole.COMPANY;
+            else if (data.user.role === 'ADMIN') userRole = UserRole.ADMIN;
+
             const userPlan = data.user.plan
                 ? (SubscriptionPlan[data.user.plan as keyof typeof SubscriptionPlan] || SubscriptionPlan.FREE)
                 : undefined;
@@ -147,6 +153,7 @@ export const useAuth = () => {
         isLoadingProfile,
         isCompany: user?.role === UserRole.COMPANY,
         isCandidate: user?.role === UserRole.CANDIDATE,
+        isAdmin: user?.role === UserRole.ADMIN,
         loginMutation,
         registerMutation,
         useBillingStatus,

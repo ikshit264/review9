@@ -5,7 +5,7 @@ import { useStore } from '@/store/useStore';
 import { JobPosting, SubscriptionPlan } from '@/types';
 import { jobsApi } from '@/services/api';
 
-export const useDashboardPageApi = () => {
+export const useDashboardPageApi = (companyId?: string) => {
   const { user } = useStore();
   const queryClient = useQueryClient();
 
@@ -24,7 +24,7 @@ export const useDashboardPageApi = () => {
       fullScreenMode?: boolean;
       noTextTyping?: boolean;
     }) => {
-      const response = await jobsApi.create(data);
+      const response = await jobsApi.create(data, companyId);
 
       // Transform backend response to frontend JobPosting format
       const newJob: JobPosting = {
@@ -51,16 +51,16 @@ export const useDashboardPageApi = () => {
       return newJob;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['jobs'] });
+      queryClient.invalidateQueries({ queryKey: ['jobs', companyId] });
     },
   });
 
   const useJobsQuery = () => {
     return useQuery({
-      queryKey: ['jobs'],
+      queryKey: ['jobs', companyId],
       queryFn: async () => {
         try {
-          const backendJobs = await jobsApi.getAll();
+          const backendJobs = await jobsApi.getAll(companyId);
 
           // Transform backend response to frontend format
           return backendJobs.map((job) => ({
@@ -69,7 +69,7 @@ export const useDashboardPageApi = () => {
             roleCategory: job.roleCategory,
             description: job.description,
             companyName: user?.name || 'Company',
-            companyId: user?.id || '',
+            companyId: companyId || user?.id || '',
             interviewStartTime: job.interviewStartTime || job.scheduledTime,
             interviewEndTime: job.interviewEndTime,
             timezone: job.timezone || 'UTC',
@@ -90,15 +90,15 @@ export const useDashboardPageApi = () => {
           return [];
         }
       },
-      enabled: user?.role === 'COMPANY', // Only fetch for company users
+      enabled: user?.role === 'COMPANY' || user?.role === 'ADMIN',
       staleTime: 30000, // 30 seconds
     });
   };
 
   const useJobAnalytics = (jobId: string) => {
     return useQuery({
-      queryKey: ['job-analytics', jobId],
-      queryFn: () => jobsApi.getAnalytics(jobId),
+      queryKey: ['job-analytics', jobId, companyId],
+      queryFn: () => jobsApi.getAnalytics(jobId, companyId),
       enabled: !!jobId,
     });
   };
@@ -111,10 +111,10 @@ export const useDashboardPageApi = () => {
       jobId: string;
       candidates: Array<{ name: string; email: string }>;
     }) => {
-      return jobsApi.inviteCandidates(jobId, { candidates });
+      return jobsApi.inviteCandidates(jobId, { candidates }, companyId);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['jobs'] });
+      queryClient.invalidateQueries({ queryKey: ['jobs', companyId] });
     },
   });
 

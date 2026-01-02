@@ -42,10 +42,7 @@ export default function ScheduledInterviews() {
     }
   }, [user]);
 
-  if (!user) {
-    router.push('/login');
-    return null;
-  }
+  if (!user) return null;
 
   return (
     <div className="min-h-screen bg-[#F8F9FA]">

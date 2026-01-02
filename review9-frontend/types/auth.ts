@@ -1,6 +1,13 @@
 export enum UserRole {
     COMPANY = 'COMPANY',
-    CANDIDATE = 'CANDIDATE'
+    CANDIDATE = 'CANDIDATE',
+    ADMIN = 'ADMIN'
+}
+
+export enum ApprovalStatus {
+    PENDING = 'PENDING',
+    APPROVED = 'APPROVED',
+    REJECTED = 'REJECTED'
 }
 
 export enum SubscriptionPlan {
@@ -24,4 +31,5 @@ export interface User {
     resumeUrl?: string;
     workExperience?: any;
     skills?: string[];
+    approvalStatus?: ApprovalStatus;
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useStore } from '@/store/useStore';
 import { Button, Card, Modal, Input } from '@/components/UI';
 import { LoadingOverlay } from '@/components/LoadingOverlay';
@@ -11,11 +11,13 @@ import { useJobApi } from '@/hooks/api/useJobApi';
 
 export default function CompanyInterviewDetail() {
   const params = useParams();
+  const searchParams = useSearchParams();
+  const companyId = searchParams.get('companyId') || searchParams.get('companyid') || undefined;
   const jobId = params.jobId as string;
   const companyName = params.companyName as string;
   const router = useRouter();
   const { user } = useStore();
-  const { useJobQuery, useJobCandidatesQuery, inviteCandidatesMutation } = useJobApi(jobId);
+  const { useJobQuery, useJobCandidatesQuery, inviteCandidatesMutation } = useJobApi(jobId, companyId);
   const { data: backendJob, isLoading: jobLoading } = useJobQuery();
   const { data: candidates = [], isLoading: candidatesLoading } = useJobCandidatesQuery();
 
@@ -112,11 +114,6 @@ export default function CompanyInterviewDetail() {
   const avgScore = (jobWithCandidates.candidates?.filter(c => c.score)?.reduce((acc, c) => acc + (c.score || 0), 0) || 0) / (completedCount || 1);
 
   const isLoading = jobLoading || candidatesLoading;
-
-  if (!user) {
-    router.push('/login');
-    return null;
-  }
 
   if (isLoading) {
     return (

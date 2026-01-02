@@ -491,20 +491,8 @@ export default function InterviewPage() {
     }
   };
 
-  // Full screen & Anti-cheat enforcement listener
-  useEffect(() => {
-    const preventContextMenu = (e: MouseEvent) => e.preventDefault();
 
-    window.addEventListener('contextmenu', preventContextMenu);
-    return () => {
-      window.removeEventListener('contextmenu', preventContextMenu);
-    };
-  }, [interviewStarted, isFinishing]);
-
-  if (!user) {
-    router.push('/login');
-    return null;
-  }
+  if (!user && !isDemo) return null;
 
   if (redirectCountdown !== null) {
     return (

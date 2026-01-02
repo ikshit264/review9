@@ -6,9 +6,10 @@ import {
     LogOut,
     User as UserIcon,
     LayoutDashboard,
-    BrainCircuit
+    BrainCircuit,
+    CreditCard
 } from 'lucide-react';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/api/useAuth';
 import { useStore } from '@/store/useStore';
 import { cn } from '@/lib/utils';
@@ -18,6 +19,8 @@ export const Sidebar = () => {
     const pathname = usePathname();
     const { logout } = useAuth();
     const { user } = useStore();
+    const searchParams = useSearchParams();
+    const companyId = searchParams.get('companyId') || searchParams.get('companyid');
 
     if (!user) return null;
 
@@ -25,15 +28,37 @@ export const Sidebar = () => {
         {
             label: 'Dashboard',
             icon: LayoutDashboard,
-            path: '/dashboard',
-            active: pathname === '/dashboard'
+            path: companyId && user.role === 'ADMIN' ? `/dashboard?companyId=${companyId}` : (user.role === 'ADMIN' ? '/admin' : '/dashboard'),
+            active: pathname === '/dashboard' || pathname === '/admin'
         },
+        ...(user.role === 'ADMIN' ? [
+            {
+                label: 'Companies',
+                icon: Briefcase,
+                path: '/admin/companies',
+                active: pathname === '/admin/companies'
+            },
+            {
+                label: 'Approvals',
+                icon: BrainCircuit,
+                path: '/admin/approvals',
+                active: pathname === '/admin/approvals'
+            }
+        ] : []),
         {
             label: 'Profile',
             icon: UserIcon,
-            path: '/profile',
+            path: companyId && user.role === 'ADMIN' ? `/profile?companyId=${companyId}` : '/profile',
             active: pathname === '/profile'
-        }
+        },
+        ...(user.role === 'COMPANY' || (user.role === 'ADMIN' && companyId) ? [
+            {
+                label: 'Billing',
+                icon: CreditCard,
+                path: companyId && user.role === 'ADMIN' ? `/billing?companyId=${companyId}` : '/billing',
+                active: pathname === '/billing'
+            }
+        ] : []),
     ];
 
     return (

@@ -466,18 +466,47 @@ export const useInterview = (
     };
 
     const blockCheat = (e: KeyboardEvent) => {
-      // F12, Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+Shift+C, Ctrl+U
+      // Cross-platform check
+      const isMac = typeof window !== 'undefined' && navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+      const isCmdOrCtrl = isMac ? e.metaKey : e.ctrlKey;
+      const isOptionOrShift = isMac ? e.altKey : e.shiftKey;
+
       if (
         e.key === 'F12' ||
-        (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J' || e.key === 'C')) ||
-        (e.ctrlKey && (e.key === 'u' || e.key === 'U'))
+        // Inspect / Console / Element Selector (I, J, C)
+        (isCmdOrCtrl && isOptionOrShift && ['i', 'I', 'j', 'J', 'c', 'C'].includes(e.key)) ||
+        // Firefox Console (K)
+        (isCmdOrCtrl && isOptionOrShift && ['k', 'K'].includes(e.key)) ||
+        // View Source (U)
+        (isCmdOrCtrl && ['u', 'U'].includes(e.key)) ||
+        // Save (S)
+        (isCmdOrCtrl && ['s', 'S'].includes(e.key)) ||
+        // Print (P)
+        (isCmdOrCtrl && ['p', 'P'].includes(e.key))
       ) {
         e.preventDefault();
-        setError("Developer tools are strictly prohibited during the session.");
+        setError("Security alert: Access to developer tools and system shortcuts is restricted.");
       }
     };
 
     const preventContextMenu = (e: MouseEvent) => e.preventDefault();
+
+    // Anti-Debug: Recursive debugger loop
+    // If DevTools is open, this will hit a breakpoint every second, making the interview unusable.
+    const antiDebug = setInterval(() => {
+      if (interviewStarted && !isPausedRef.current) {
+        (function detect(i) {
+          if (typeof i === 'string') {
+            return (function (a: any) { }).constructor('debugger').apply('stateObject');
+          } else if (('' + (i / i)).length !== 1 || i % 20 === 0) {
+            (function () { }).constructor('debugger')();
+          } else {
+            debugger;
+          }
+          detect(++i);
+        }(0));
+      }
+    }, 1000);
 
     window.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('blur', handleBlur);
@@ -493,6 +522,7 @@ export const useInterview = (
       document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
       window.removeEventListener('keydown', blockCheat);
       window.removeEventListener('contextmenu', preventContextMenu);
+      clearInterval(antiDebug);
     };
   }, [interviewStarted, isFlagged, handleMalpractice, settings?.fullScreenMode]);
 

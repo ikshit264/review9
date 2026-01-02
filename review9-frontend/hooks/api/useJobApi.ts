@@ -5,19 +5,19 @@ import { jobsApi } from '@/services/api';
 import { JobPosting, SubscriptionPlan } from '@/types';
 import { useStore } from '@/store/useStore';
 
-export const useJobApi = (jobId?: string) => {
+export const useJobApi = (jobId?: string, companyId?: string) => {
     const queryClient = useQueryClient();
     const { user } = useStore();
 
     // Fetch only job metadata (lightweight)
     const useJobQuery = () => {
         return useQuery({
-            queryKey: ['job', jobId],
+            queryKey: ['job', jobId, companyId],
             queryFn: async () => {
                 if (!jobId) return null;
 
                 try {
-                    const backendJob = await jobsApi.getById(jobId);
+                    const backendJob = await jobsApi.getById(jobId, companyId);
 
                     const job: JobPosting = {
                         id: backendJob.id,
@@ -25,7 +25,7 @@ export const useJobApi = (jobId?: string) => {
                         roleCategory: backendJob.roleCategory,
                         description: backendJob.description,
                         companyName: user?.name || 'Company',
-                        companyId: user?.id || '',
+                        companyId: companyId || user?.id || '',
                         interviewStartTime: backendJob.interviewStartTime || backendJob.scheduledTime,
                         interviewEndTime: backendJob.interviewEndTime,
                         timezone: backendJob.timezone || 'UTC',
@@ -54,10 +54,10 @@ export const useJobApi = (jobId?: string) => {
     // Fetch candidates separately
     const useJobCandidatesQuery = () => {
         return useQuery({
-            queryKey: ['job-candidates', jobId],
+            queryKey: ['job-candidates', jobId, companyId],
             queryFn: async () => {
                 if (!jobId) return [];
-                return jobsApi.getCandidates(jobId);
+                return jobsApi.getCandidates(jobId, companyId);
             },
             enabled: !!jobId,
             staleTime: 10000,
@@ -72,22 +72,22 @@ export const useJobApi = (jobId?: string) => {
             candidates: Array<{ name: string; email: string }>;
         }) => {
             if (!jobId) throw new Error('Job ID is required');
-            return jobsApi.inviteCandidates(jobId, { candidates });
+            return jobsApi.inviteCandidates(jobId, { candidates }, companyId);
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['job', jobId] });
-            queryClient.invalidateQueries({ queryKey: ['job-candidates', jobId] });
-            queryClient.invalidateQueries({ queryKey: ['jobs'] });
+            queryClient.invalidateQueries({ queryKey: ['job', jobId, companyId] });
+            queryClient.invalidateQueries({ queryKey: ['job-candidates', jobId, companyId] });
+            queryClient.invalidateQueries({ queryKey: ['jobs', companyId] });
         },
     });
 
     // Get job analytics
     const useJobAnalytics = () => {
         return useQuery({
-            queryKey: ['job-analytics', jobId],
+            queryKey: ['job-analytics', jobId, companyId],
             queryFn: () => {
                 if (!jobId) throw new Error('Job ID is required');
-                return jobsApi.getAnalytics(jobId);
+                return jobsApi.getAnalytics(jobId, companyId);
             },
             enabled: !!jobId,
         });

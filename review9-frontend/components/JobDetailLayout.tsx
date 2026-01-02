@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { useRouter, useParams, usePathname } from 'next/navigation';
+import { useRouter, useParams, usePathname, useSearchParams } from 'next/navigation';
 import { Button } from './UI';
 
 interface JobDetailLayoutProps {
@@ -14,17 +14,19 @@ interface JobDetailLayoutProps {
 export const JobDetailLayout: React.FC<JobDetailLayoutProps> = ({ children, jobTitle, companyName, onInviteClick }) => {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const pathname = usePathname();
   const jobId = params.jobId as string;
+  const companyId = searchParams.get('companyId') || searchParams.get('companyid');
 
   // Encode company name for URL
   const encodedCompanyName = encodeURIComponent(companyName.replace(/\s+/g, '-').toLowerCase());
 
   const tabs = [
-    { label: 'Overview', path: `/${encodedCompanyName}/${jobId}` },
-    { label: 'Responses', path: `/${encodedCompanyName}/${jobId}/responses` },
-    { label: 'Analytics', path: `/${encodedCompanyName}/${jobId}/analytics` },
-    { label: 'Edit & Config', path: `/${encodedCompanyName}/${jobId}/edit` },
+    { label: 'Overview', path: `/${encodedCompanyName}/${jobId}${companyId ? `?companyId=${companyId}` : ''}` },
+    { label: 'Responses', path: `/${encodedCompanyName}/${jobId}/responses${companyId ? `?companyId=${companyId}` : ''}` },
+    { label: 'Analytics', path: `/${encodedCompanyName}/${jobId}/analytics${companyId ? `?companyId=${companyId}` : ''}` },
+    { label: 'Edit & Config', path: `/${encodedCompanyName}/${jobId}/edit${companyId ? `?companyId=${companyId}` : ''}` },
   ];
 
   const handleExport = () => {
@@ -71,8 +73,8 @@ export const JobDetailLayout: React.FC<JobDetailLayoutProps> = ({ children, jobT
                 key={tab.path}
                 onClick={() => router.push(tab.path)}
                 className={`pb-4 text-[11px] font-black uppercase tracking-[0.2em] transition-all border-b-4 ${isActive
-                    ? 'text-blue-600 border-blue-600'
-                    : 'text-gray-400 border-transparent hover:text-gray-600'
+                  ? 'text-blue-600 border-blue-600'
+                  : 'text-gray-400 border-transparent hover:text-gray-600'
                   }`}
               >
                 {tab.label}

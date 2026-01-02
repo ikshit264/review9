@@ -31,9 +31,14 @@ async function apiRequest<T>(
     });
 
     if (response.status === 401) {
-        // Redirect to login if unauthorized
+        // Redirect to login if unauthorized and not on a public page
         if (typeof window !== 'undefined' && !endpoint.includes('/auth/login')) {
-            window.location.href = '/login?error=session_expired';
+            const publicPaths = ['/', '/login', '/register', '/interview/demo'];
+            const isPublicPage = publicPaths.includes(window.location.pathname);
+            
+            if (!isPublicPage) {
+                window.location.href = '/login?error=session_expired';
+            }
         }
 
         const error = await response.json().catch(() => ({ message: 'Unauthorized' }));
@@ -71,8 +76,9 @@ export const authApi = {
         });
     },
 
-    getProfile: async () => {
-        return apiRequest<User>('/auth/me');
+    getProfile: async (userId?: string) => {
+        const url = userId ? `/auth/me?userId=${userId}` : '/auth/me';
+        return apiRequest<User>(url);
     },
 
     updateProfile: async (data: Partial<User>) => {
@@ -88,53 +94,67 @@ export const authApi = {
             body: JSON.stringify({ ip }),
         });
     },
+    verifyToken: async (token: string) => {
+        return apiRequest<{ user: User }>('/auth/verify-link', {
+            method: 'POST',
+            body: JSON.stringify({ token }),
+        });
+    },
 };
 
 // Jobs API
 export const jobsApi = {
-    getAll: async () => {
-        return apiRequest<any[]>('/jobs');
+    getAll: async (companyId?: string) => {
+        const url = companyId ? `/jobs?companyId=${companyId}` : '/jobs';
+        return apiRequest<any[]>(url);
     },
 
-    getById: async (id: string) => {
-        return apiRequest<any>(`/jobs/${id}`);
+    getById: async (id: string, companyId?: string) => {
+        const url = companyId ? `/jobs/${id}?companyId=${companyId}` : `/jobs/${id}`;
+        return apiRequest<any>(url);
     },
 
-    create: async (data: Partial<JobPosting>) => {
-        return apiRequest<any>('/jobs', {
+    create: async (data: Partial<JobPosting>, companyId?: string) => {
+        const url = companyId ? `/jobs?companyId=${companyId}` : '/jobs';
+        return apiRequest<any>(url, {
             method: 'POST',
             body: JSON.stringify(data),
         });
     },
 
-    update: async (id: string, data: Partial<JobPosting>) => {
-        return apiRequest<any>(`/jobs/${id}`, {
+    update: async (id: string, data: Partial<JobPosting>, companyId?: string) => {
+        const url = companyId ? `/jobs/${id}?companyId=${companyId}` : `/jobs/${id}`;
+        return apiRequest<any>(url, {
             method: 'PUT',
             body: JSON.stringify(data),
         });
     },
 
-    delete: async (id: string) => {
-        return apiRequest<{ success: boolean }>(`/jobs/${id}`, {
+    delete: async (id: string, companyId?: string) => {
+        const url = companyId ? `/jobs/${id}?companyId=${companyId}` : `/jobs/${id}`;
+        return apiRequest<{ success: boolean }>(url, {
             method: 'DELETE',
         });
     },
 
-    inviteCandidate: async (jobId: string, data: { email: string; name: string }) => {
-        return apiRequest<Candidate>(`/jobs/${jobId}/candidates`, {
+    inviteCandidate: async (jobId: string, data: { email: string; name: string }, companyId?: string) => {
+        const url = companyId ? `/jobs/${jobId}/candidates?companyId=${companyId}` : `/jobs/${jobId}/candidates`;
+        return apiRequest<Candidate>(url, {
             method: 'POST',
             body: JSON.stringify(data),
         });
     },
 
-    inviteCandidates: async (jobId: string, data: { candidates: { email: string; name: string }[] }) => {
-        return apiRequest<{ success: boolean }>(`/jobs/${jobId}/candidates`, {
+    inviteCandidates: async (jobId: string, data: { candidates: { email: string; name: string }[] }, companyId?: string) => {
+        const url = companyId ? `/jobs/${jobId}/candidates?companyId=${companyId}` : `/jobs/${jobId}/candidates`;
+        return apiRequest<{ success: boolean }>(url, {
             method: 'POST',
             body: JSON.stringify(data),
         });
     },
 
-    getInvitationProgress: async (jobId: string) => {
+    getInvitationProgress: async (jobId: string, companyId?: string) => {
+        const url = companyId ? `/jobs/${jobId}/candidates/invitation-progress?companyId=${companyId}` : `/jobs/${jobId}/candidates/invitation-progress`;
         return apiRequest<{
             found: boolean;
             total: number;
@@ -143,21 +163,24 @@ export const jobsApi = {
             failed: number;
             completed: boolean;
             details: any[];
-        }>(`/jobs/${jobId}/candidates/invitation-progress`);
+        }>(url);
     },
 
-    getCandidates: async (jobId: string) => {
-        return apiRequest<Candidate[]>(`/jobs/${jobId}/candidates`);
+    getCandidates: async (jobId: string, companyId?: string) => {
+        const url = companyId ? `/jobs/${jobId}/candidates?companyId=${companyId}` : `/jobs/${jobId}/candidates`;
+        return apiRequest<Candidate[]>(url);
     },
 
-    reInterviewCandidate: async (jobId: string, candidateId: string) => {
-        return apiRequest<{ success: boolean }>(`/candidates/${candidateId}/re-interview`, {
+    reInterviewCandidate: async (jobId: string, candidateId: string, companyId?: string) => {
+        const url = companyId ? `/candidates/${candidateId}/re-interview?companyId=${companyId}` : `/candidates/${candidateId}/re-interview`;
+        return apiRequest<{ success: boolean }>(url, {
             method: 'POST',
         });
     },
 
-    updateCandidateStatus: async (candidateId: string, status: Candidate['status']) => {
-        return apiRequest<Candidate>(`/candidates/${candidateId}/status`, {
+    updateCandidateStatus: async (candidateId: string, status: Candidate['status'], companyId?: string) => {
+        const url = companyId ? `/candidates/${candidateId}/status?companyId=${companyId}` : `/candidates/${candidateId}/status`;
+        return apiRequest<Candidate>(url, {
             method: 'PATCH',
             body: JSON.stringify({ status }),
         });
@@ -170,14 +193,16 @@ export const jobsApi = {
         });
     },
 
-    resendInvite: async (jobId: string, data: { name: string; email: string }) => {
-        return apiRequest<{ success: boolean }>(`/jobs/${jobId}/candidates/resend`, {
+    resendInvite: async (jobId: string, data: { name: string; email: string }, companyId?: string) => {
+        const url = companyId ? `/jobs/${jobId}/candidates/resend?companyId=${companyId}` : `/jobs/${jobId}/candidates/resend`;
+        return apiRequest<{ success: boolean }>(url, {
             method: 'POST',
             body: JSON.stringify(data),
         });
     },
 
-    getAnalytics: async (jobId: string) => {
+    getAnalytics: async (jobId: string, companyId?: string) => {
+        const url = companyId ? `/jobs/${jobId}/analytics?companyId=${companyId}` : `/jobs/${jobId}/analytics`;
         return apiRequest<{
             completionRate: number;
             integrityRate: number;
@@ -193,7 +218,7 @@ export const jobsApi = {
                 other: number;
             };
             statusCounts: Record<string, number>;
-        }>(`/jobs/${jobId}/analytics`);
+        }>(url);
     },
 
     getCompanyProfile: async (id: string) => {
@@ -219,8 +244,9 @@ export const interviewsApi = {
         return apiRequest<{ status: string }>(`/interviews/token/${token}/status`);
     },
 
-    getSession: async (id: string) => {
-        return apiRequest<InterviewSession>(`/interviews/${id}`);
+    getSession: async (id: string, companyId?: string) => {
+        const url = companyId ? `/interviews/${id}?companyId=${companyId}` : `/interviews/${id}`;
+        return apiRequest<InterviewSession>(url);
     },
 
     startInterview: async (token: string, data: { resumeUrl?: string | null, resumeText?: string }) => {
@@ -271,8 +297,9 @@ export const interviewsApi = {
         });
     },
 
-    resumeInterview: async (sessionId: string) => {
-        return apiRequest<{ success: boolean }>(`/interviews/${sessionId}/resume`, {
+    resumeInterview: async (sessionId: string, companyId?: string) => {
+        const url = companyId ? `/interviews/${sessionId}/resume?companyId=${companyId}` : `/interviews/${sessionId}/resume`;
+        return apiRequest<{ success: boolean }>(url, {
             method: 'POST',
         });
     },
@@ -326,12 +353,14 @@ export const interviewsApi = {
         });
     },
 
-    getEvaluation: async (sessionId: string) => {
-        return apiRequest<FinalEvaluation>(`/interviews/${sessionId}/evaluation`);
+    getEvaluation: async (sessionId: string, companyId?: string) => {
+        const url = companyId ? `/interviews/${sessionId}/evaluation?companyId=${companyId}` : `/interviews/${sessionId}/evaluation`;
+        return apiRequest<FinalEvaluation>(url);
     },
 
-    getSessionReport: async (sessionId: string) => {
-        return apiRequest(`/interviews/${sessionId}/report`);
+    getSessionReport: async (sessionId: string, companyId?: string) => {
+        const url = companyId ? `/interviews/${sessionId}/report?companyId=${companyId}` : `/interviews/${sessionId}/report`;
+        return apiRequest(url);
     },
 };
 
@@ -403,5 +432,21 @@ export const notificationsApi = {
     },
     delete: async (id: string) => {
         return apiRequest<{ success: boolean }>(`/notifications/${id}`, { method: 'DELETE' });
+    }
+};
+
+// Admin API
+export const adminApi = {
+    getCompanies: async (page: number = 1, limit: number = 10) => {
+        return apiRequest<any>(`/admin/companies?page=${page}&limit=${limit}`);
+    },
+    approveCompany: async (id: string) => {
+        return apiRequest<{ message: string }>(`/admin/companies/${id}/approve`, { method: 'POST' });
+    },
+    rejectCompany: async (id: string) => {
+        return apiRequest<{ message: string }>(`/admin/companies/${id}/reject`, { method: 'POST' });
+    },
+    getActivities: async () => {
+        return apiRequest<any>('/admin/activities');
     }
 };

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useStore } from '@/store/useStore';
 import { useAuth } from '@/hooks/api/useAuth';
 import { UserRole, SubscriptionPlan } from '@/types';
@@ -33,14 +33,31 @@ import {
 
 export default function Dashboard() {
   const { user } = useStore();
+  const searchParams = useSearchParams();
+  const companyId = searchParams.get('companyId') || searchParams.get('companyid') || undefined;
+
   const { logout } = useAuth();
   const router = useRouter();
   const toast = useToast();
   const [isJobModalOpen, setIsJobModalOpen] = useState(false);
-  const { createJobMutation, useJobsQuery } = useDashboardPageApi();
+  const { createJobMutation, useJobsQuery } = useDashboardPageApi(companyId);
   const { data: jobs = [], isLoading: jobsLoading } = useJobsQuery();
   const [invitations, setInvitations] = useState<any[]>([]);
   const [invitesLoading, setInvitesLoading] = useState(false);
+
+  const [targetCompany, setTargetCompany] = useState<any>(null);
+
+  useEffect(() => {
+    if (user?.role === 'ADMIN' && companyId) {
+      import('@/services/api').then(({ authApi }) => {
+        authApi.getProfile(companyId).then(setTargetCompany).catch(console.error);
+      });
+    }
+  }, [user, companyId]);
+
+  const displayName = targetCompany?.name || user?.name || 'User';
+  const displayRole = targetCompany?.role || user?.role || 'User';
+  const displayId = targetCompany?.id || user?.id || '';
 
   // Polling state for invitations
   const [isInviting, setIsInviting] = useState(false);
@@ -71,12 +88,6 @@ export default function Dashboard() {
       });
     }
   }, [user]);
-
-  useEffect(() => {
-    if (!user && typeof window !== 'undefined') {
-      router.push('/login');
-    }
-  }, [user, router]);
 
   // Helper for status badges
   const renderStatusBadge = (status: string, startTime?: string, endTime?: string, isReInterviewed?: boolean) => {
@@ -192,12 +203,15 @@ export default function Dashboard() {
           <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12">
             <div className="space-y-1">
               <div className="flex items-center space-x-3">
-                <span className="px-2 py-0.5 bg-blue-100 text-blue-600 rounded text-[9px] font-black uppercase tracking-widest">{user.role}</span>
+                <span className="px-2 py-0.5 bg-blue-100 text-blue-600 rounded text-[9px] font-black uppercase tracking-widest">{displayRole}</span>
                 <div className="w-1 h-1 bg-gray-200 rounded-full"></div>
-                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Workspace ID: {user.id?.slice(0, 8)}</span>
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Workspace ID: {displayId?.slice(0, 8)}</span>
+                {user?.role === 'ADMIN' && companyId && (
+                  <span className="ml-4 px-2 py-0.5 bg-amber-100 text-amber-600 rounded text-[9px] font-black uppercase tracking-widest">Admin Viewing</span>
+                )}
               </div>
               <h1 className="text-4xl lg:text-5xl font-black tracking-tight text-slate-900">
-                Welcome back, {user.name.split(' ')[0]}
+                Welcome back, {displayName.split(' ')[0]}
                 <span className="text-blue-600">.</span>
               </h1>
             </div>
@@ -205,7 +219,7 @@ export default function Dashboard() {
             <div className="flex items-center gap-4">
               <NotificationDropdown />
               <div className="h-10 w-[1px] bg-gray-100 mx-2"></div>
-              {user.role === UserRole.COMPANY ? (
+              {(user.role === UserRole.COMPANY || user.role === 'ADMIN') ? (
                 <button
                   onClick={() => setIsJobModalOpen(true)}
                   className="group flex items-center space-x-3 bg-slate-900 hover:bg-slate-800 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] shadow-xl shadow-slate-200 transition-all hover:-translate-y-0.5 active:translate-y-0"
@@ -216,11 +230,11 @@ export default function Dashboard() {
               ) : (
                 <div className="flex items-center space-x-4">
                   <div className="text-right">
-                    <p className="text-[11px] font-black text-slate-900 uppercase tracking-widest">{user.name}</p>
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Candidate</p>
+                    <p className="text-[11px] font-black text-slate-900 uppercase tracking-widest">{displayName}</p>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{displayRole}</p>
                   </div>
                   <div className="w-12 h-12 bg-indigo-50 border border-indigo-100 rounded-2xl flex items-center justify-center text-indigo-600 font-black shadow-inner">
-                    {user.name[0]}
+                    {displayName[0]}
                   </div>
                 </div>
               )}
@@ -229,7 +243,7 @@ export default function Dashboard() {
 
           {/* Content Grid */}
           <div className="space-y-12">
-            {user.role === UserRole.COMPANY && (
+            {(user.role === UserRole.COMPANY || user.role === 'ADMIN') && (
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
                 {dashboardStats.map((stat, i) => (
                   <div key={i} className="p-8 rounded-[2.5rem] bg-white border border-gray-100 shadow-sm transition-all hover:shadow-md hover:border-blue-100 group">
@@ -253,7 +267,7 @@ export default function Dashboard() {
                     <div key={n} className="h-72 rounded-[2.5rem] bg-gray-50/50 animate-pulse border border-gray-100"></div>
                   ))}
                 </div>
-              ) : user.role === UserRole.COMPANY ? (
+              ) : (user.role === UserRole.COMPANY || user.role === 'ADMIN') ? (
                 jobs.length === 0 ? (
                   <div className="relative p-24 rounded-[3rem] border-2 border-dashed border-gray-100 bg-gray-50/30 flex flex-col items-center justify-center text-center overflow-hidden">
                     <div className="w-20 h-20 bg-white rounded-[2rem] shadow-xl flex items-center justify-center mb-8 border border-gray-50">
