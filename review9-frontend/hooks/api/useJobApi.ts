@@ -33,7 +33,6 @@ export const useJobApi = (jobId?: string) => {
                         tabTracking: backendJob.tabTracking,
                         eyeTracking: backendJob.eyeTracking,
                         multiFaceDetection: backendJob.multiFaceDetection ?? false,
-                        screenRecording: backendJob.screenRecording ?? false,
                         fullScreenMode: backendJob.fullScreenMode ?? false,
                         noTextTyping: backendJob.noTextTyping,
                         videoRequired: backendJob.videoRequired || false,

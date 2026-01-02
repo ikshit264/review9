@@ -37,7 +37,6 @@ export default function CompanyInterviewDetail() {
     tabTracking: true,
     eyeTracking: false,
     multiFaceDetection: false,
-    screenRecording: false,
     fullScreenMode: false,
     noTextTyping: false,
     videoRequired: false,

@@ -30,7 +30,6 @@ export default function JobAnalytics() {
     tabTracking: true,
     eyeTracking: false,
     multiFaceDetection: false,
-    screenRecording: false,
     fullScreenMode: false,
     videoRequired: false,
     micRequired: false,

@@ -21,7 +21,6 @@ export const useDashboardPageApi = () => {
       tabTracking?: boolean;
       eyeTracking?: boolean;
       multiFaceDetection?: boolean;
-      screenRecording?: boolean;
       fullScreenMode?: boolean;
       noTextTyping?: boolean;
     }) => {
@@ -43,7 +42,6 @@ export const useDashboardPageApi = () => {
         tabTracking: data.tabTracking ?? true,
         eyeTracking: data.eyeTracking ?? false,
         multiFaceDetection: data.multiFaceDetection ?? false,
-        screenRecording: data.screenRecording ?? false,
         fullScreenMode: data.fullScreenMode ?? false,
         noTextTyping: data.noTextTyping ?? false,
         videoRequired: false,
@@ -82,7 +80,6 @@ export const useDashboardPageApi = () => {
             tabTracking: job.tabTracking ?? true,
             eyeTracking: job.eyeTracking ?? false,
             multiFaceDetection: job.multiFaceDetection ?? false,
-            screenRecording: job.screenRecording ?? false,
             fullScreenMode: job.fullScreenMode ?? false,
             noTextTyping: job.noTextTyping ?? false,
             videoRequired: job.videoRequired ?? false,

@@ -45,6 +45,7 @@ export default function InterviewPage() {
     name: user?.name || 'Demo User',
     email: user?.email || 'demo@example.com',
     status: 'INVITED',
+    interviewLink: '/interview/demo',
     job: {
       id: 'demo-job',
       title: 'Senior Product Designer (Demo)',
@@ -56,8 +57,9 @@ export default function InterviewPage() {
       tabTracking: true,
       eyeTracking: true,
       multiFaceDetection: true,
-      screenRecording: true,
       fullScreenMode: true,
+      videoRequired: true,
+      micRequired: true,
       noTextTyping: true,
       companyId: 'demo-company',
       timezone: 'UTC',
@@ -466,16 +468,6 @@ export default function InterviewPage() {
       }
     }
 
-    // 2. Strict Screen Recording Gate (Enforced for both Demo and Real)
-    if (settings?.screenRecording && !securityStatus.screenShare) {
-      try {
-        await verifyScreenShare();
-        if (!securityStatus.screenShare) throw new Error("Screen share not active");
-      } catch (err) {
-        toast.error("Screen sharing is strictly required.");
-        return;
-      }
-    }
 
     if (isDemo) {
       setSessionId('demo-session');
@@ -633,7 +625,7 @@ export default function InterviewPage() {
   // Don't show expired if interview has started or if there's still time left
   // This matches backend logic: don't expire if session is ongoing
   const actuallyExpired = isExpired && !interviewStarted && !sessionId;
-  
+
   if (actuallyExpired) {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-8">
@@ -655,8 +647,7 @@ export default function InterviewPage() {
   if (isResumeSubmitted && !interviewStarted && chat.length === 0) {
     const settings = interviewInfo?.job;
     const isFsRequired = settings?.fullScreenMode;
-    const isSsRequired = settings?.screenRecording;
-    const allVerified = (!isFsRequired || securityStatus.fullscreen) && (!isSsRequired || securityStatus.screenShare) && securityStatus.camera && securityStatus.mic;
+    const allVerified = (!isFsRequired || securityStatus.fullscreen) && securityStatus.camera && securityStatus.mic;
 
     return (
       <div className="min-h-screen bg-[#F8F9FA] flex flex-col items-center justify-center p-8">
@@ -714,18 +705,7 @@ export default function InterviewPage() {
               {!securityStatus.mic ? <Button variant="secondary" onClick={verifyMic} className="text-[10px] px-4 py-2 font-black uppercase tracking-widest rounded-xl">Verify</Button> : <CheckCircle2 className="w-6 h-6 text-green-500" />}
             </div>
 
-            {isSsRequired && (
-              <div className="flex items-center justify-between p-5 bg-gray-50 rounded-2xl border border-gray-100">
-                <div className="flex items-center space-x-4">
-                  <div className={`p-3 rounded-xl ${securityStatus.screenShare ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}`}><Monitor className="w-5 h-5" /></div>
-                  <div>
-                    <h4 className="font-black text-gray-900 leading-none mb-1 uppercase tracking-tight">Screen Recording</h4>
-                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Detects tab switching</p>
-                  </div>
-                </div>
-                {!securityStatus.screenShare ? <Button variant="secondary" onClick={verifyScreenShare} className="text-[10px] px-4 py-2 font-black uppercase tracking-widest rounded-xl">Enable</Button> : <CheckCircle2 className="w-6 h-6 text-green-500" />}
-              </div>
-            )}
+
           </div>
 
           <LoadingButton

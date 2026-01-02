@@ -65,7 +65,6 @@ export default function JobResponses() {
     tabTracking: true,
     eyeTracking: false,
     multiFaceDetection: false,
-    screenRecording: false,
     fullScreenMode: false,
     videoRequired: false,
     micRequired: false,
