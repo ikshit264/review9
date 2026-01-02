@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useStore } from '@/store/useStore';
 import { Button, Card, Modal, Input } from '@/components/UI';
+import { LoadingOverlay } from '@/components/LoadingOverlay';
 import { SubscriptionPlan, JobPosting } from '@/types';
 import { JobDetailLayout } from '@/components/JobDetailLayout';
 import { useJobApi } from '@/hooks/api/useJobApi';
@@ -13,32 +14,42 @@ export default function CompanyInterviewDetail() {
   const jobId = params.jobId as string;
   const companyName = params.companyName as string;
   const router = useRouter();
-  const { user, jobs: storeJobs } = useStore();
-  const { useJobQuery, inviteCandidatesMutation } = useJobApi(jobId);
-  const { data: backendJob, isLoading } = useJobQuery();
+  const { user } = useStore();
+  const { useJobQuery, useJobCandidatesQuery, inviteCandidatesMutation } = useJobApi(jobId);
+  const { data: backendJob, isLoading: jobLoading } = useJobQuery();
+  const { data: candidates = [], isLoading: candidatesLoading } = useJobCandidatesQuery();
 
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [candidateEmails, setCandidateEmails] = useState('');
   const [isInviting, setIsInviting] = useState(false);
 
-  // Try to get job from backend first, fallback to store
-  const storeJob = storeJobs.find(j => j.id === jobId);
-  const job: JobPosting = backendJob || storeJob || {
+  // Get job from backend
+  const job: JobPosting = backendJob || {
     id: jobId || 'job-1',
     title: 'Loading...',
-    role: 'Loading...',
+    roleCategory: 'Loading...',
     description: 'Loading job details...',
     companyName: user?.name || 'Company',
     companyId: user?.id || 'comp_1',
-    date: new Date().toISOString(),
+    interviewStartTime: new Date().toISOString(),
+    interviewEndTime: new Date().toISOString(),
     planAtCreation: user?.plan || SubscriptionPlan.FREE,
-    proctoringSettings: {
-      tabTracking: true,
-      eyeTracking: false,
-      multiFaceDetection: false,
-      screenRecording: false,
-    },
+    tabTracking: true,
+    eyeTracking: false,
+    multiFaceDetection: false,
+    screenRecording: false,
+    fullScreenMode: false,
+    noTextTyping: false,
+    videoRequired: false,
+    micRequired: false,
+    timezone: 'UTC',
     candidates: []
+  };
+
+  // Combine job metadata with fetched candidates
+  const jobWithCandidates = {
+    ...job,
+    candidates: candidates || []
   };
 
   const getStatusColor = (status: string) => {
@@ -98,8 +109,10 @@ export default function CompanyInterviewDetail() {
   };
 
   // Calculate stats
-  const completedCount = job.candidates.filter(c => c.status === 'completed').length;
-  const avgScore = job.candidates.filter(c => c.score).reduce((acc, c) => acc + (c.score || 0), 0) / (completedCount || 1);
+  const completedCount = jobWithCandidates.candidates?.length || 0;
+  const avgScore = (jobWithCandidates.candidates?.filter(c => c.score)?.reduce((acc, c) => acc + (c.score || 0), 0) || 0) / (completedCount || 1);
+
+  const isLoading = jobLoading || candidatesLoading;
 
   if (!user) {
     router.push('/login');
@@ -119,9 +132,10 @@ export default function CompanyInterviewDetail() {
   return (
     <JobDetailLayout
       jobTitle={job.title}
-      companyName={companyName || job.companyName}
+      companyName={companyName || job.companyName || 'Company'}
       onInviteClick={() => setIsInviteModalOpen(true)}
     >
+      <LoadingOverlay isLoading={isInviting} message="Sending invitations..." />
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         <div className="lg:col-span-8 space-y-8">
           <Card className="p-8 border-none shadow-xl relative overflow-hidden bg-white">
@@ -131,7 +145,7 @@ export default function CompanyInterviewDetail() {
             <div className="flex space-x-6 border-t border-gray-50 pt-8">
               <div className="flex-1">
                 <div className="text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Candidates</div>
-                <div className="text-3xl font-black text-gray-900">{job.candidates.length}</div>
+                <div className="text-3xl font-black text-gray-900">{jobWithCandidates.candidates?.length || 0}</div>
               </div>
               <div className="flex-1">
                 <div className="text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Completed</div>
@@ -139,7 +153,7 @@ export default function CompanyInterviewDetail() {
               </div>
               <div className="flex-1">
                 <div className="text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Average Score</div>
-                <div className="text-3xl font-black text-blue-600">{avgScore > 0 ? `${Math.round(avgScore)}%` : '--'}</div>
+                <div className="text-3xl font-black text-blue-600 ">{avgScore > 0 ? `${Math.round(avgScore)}` : '--'} <span className="text-xl font-black text-gray-400 uppercase tracking-widest">PTS</span> </div>
               </div>
             </div>
           </Card>
@@ -149,7 +163,7 @@ export default function CompanyInterviewDetail() {
               <h3 className="text-lg font-black text-gray-900">Candidates</h3>
               <Button variant="ghost" className="text-blue-600 font-bold text-sm" onClick={() => router.push(`/${companyName || job.companyName}/${jobId}/responses`)}>View All Responses &rarr;</Button>
             </div>
-            {job.candidates.length === 0 ? (
+            {(jobWithCandidates.candidates?.length || 0) === 0 ? (
               <div className="p-12 text-center text-gray-400">
                 <p className="font-bold">No candidates yet</p>
                 <p className="text-sm mt-2">Click "Invite Candidate" to add candidates to this job</p>
@@ -165,7 +179,7 @@ export default function CompanyInterviewDetail() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {job.candidates.map(candidate => (
+                  {jobWithCandidates.candidates?.map(candidate => (
                     <tr key={candidate.id} className="hover:bg-blue-50/30 transition-colors">
                       <td className="px-8 py-5">
                         <div className="font-bold text-gray-900">{candidate.name}</div>
@@ -203,7 +217,7 @@ export default function CompanyInterviewDetail() {
                         </Button>
                       </td>
                     </tr>
-                  ))}
+                  )) || []}
                 </tbody>
               </table>
             )}
@@ -218,14 +232,24 @@ export default function CompanyInterviewDetail() {
             </div>
 
             <div className="space-y-4">
-              {Object.entries(job.proctoringSettings).map(([key, enabled]) => (
-                <div key={key} className="flex items-center justify-between">
-                  <span className="text-sm font-bold text-gray-600 capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</span>
-                  <span className={`text-[10px] font-black px-2 py-1 rounded-lg uppercase ${enabled ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-400'}`}>
-                    {enabled ? 'On' : 'Off'}
-                  </span>
-                </div>
-              ))}
+              {[
+                { key: 'tabTracking', label: 'Tab Tracking' },
+                { key: 'eyeTracking', label: 'Eye Tracking' },
+                { key: 'multiFaceDetection', label: 'Multi-Face' },
+                { key: 'screenRecording', label: 'Screen Share' },
+                { key: 'fullScreenMode', label: 'Strict Fullscreen' },
+                { key: 'noTextTyping', label: 'Verbal Only' },
+              ].map(({ key, label }) => {
+                const enabled = (job as any)[key];
+                return (
+                  <div key={key} className="flex items-center justify-between">
+                    <span className="text-sm font-bold text-gray-700">{label}</span>
+                    <span className={`text-[10px] font-black px-2 py-1 rounded-lg uppercase ${enabled ? 'bg-blue-600/10 text-blue-600' : 'bg-gray-100 text-gray-400'}`}>
+                      {enabled ? 'Active' : 'Inactive'}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
 
             <div className="mt-8 pt-6 border-t border-gray-50 text-center">

@@ -32,7 +32,7 @@ class UpdateProfileDto {
     resumeUrl?: string;
 
     @IsOptional()
-    workExperience?: any;
+    workExperience?: Record<string, unknown> | unknown[];
 
     @IsOptional()
     skills?: string[];
@@ -58,9 +58,9 @@ export class AuthController {
         // Set JWT token in HTTP-only cookie
         res.cookie('accessToken', result.accessToken, {
             httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
-            maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+            secure: true, // MUST be true for SameSite=None
+            sameSite: 'none',
+            maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
         });
 
         // Return only user data, not the token
@@ -91,14 +91,14 @@ export class AuthController {
         // Clear the cookie
         res.clearCookie('accessToken', {
             httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
+            secure: true,
+            sameSite: 'none',
         });
 
         return { message: 'Logged out successfully' };
     }
 
-    @Get('detect-timezone')
+    @Post('detect-timezone')
     async detectTimezone(@Body('ip') ip?: string) {
         return this.authService.detectTimezone(ip);
     }

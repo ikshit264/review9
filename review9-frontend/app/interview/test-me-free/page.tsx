@@ -6,7 +6,7 @@ import { useStore } from '@/store/useStore';
 
 export default function TestMeFreePage() {
     const router = useRouter();
-    const { setAuth } = useStore();
+    const { setUser } = useStore();
 
     useEffect(() => {
         const startTestSession = async () => {
@@ -19,10 +19,10 @@ export default function TestMeFreePage() {
                 }
 
                 const data = await response.json();
-                const { accessToken, user, interviewToken } = data;
+                const { user, interviewToken } = data;
 
-                // Set authentication in store
-                setAuth(user, accessToken);
+                // Set user in store (auth token is handled by cookies)
+                setUser(user);
 
                 // Redirect to the interview page
                 router.push(`/interview/${interviewToken}`);
@@ -32,7 +32,7 @@ export default function TestMeFreePage() {
         };
 
         startTestSession();
-    }, [setAuth, router]);
+    }, [setUser, router]);
 
     return (
         <div className="min-h-screen bg-[#0A0A0B] flex flex-col items-center justify-center p-8 text-center">

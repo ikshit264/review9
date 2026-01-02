@@ -22,6 +22,6 @@ export interface User {
     timezone?: string;
     isProfileComplete?: boolean;
     resumeUrl?: string;
-    workExperience?: Record<string, unknown>;
+    workExperience?: any;
     skills?: string[];
 }

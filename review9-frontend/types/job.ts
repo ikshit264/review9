@@ -5,7 +5,6 @@ export interface ProctoringSettings {
     tabTracking: boolean;
     eyeTracking: boolean;
     multiFaceDetection: boolean;
-    screenRecording: boolean;
     fullScreenMode: boolean;
     noTextTyping: boolean;
 }
@@ -24,12 +23,15 @@ export interface JobPosting {
     tabTracking: boolean;
     eyeTracking: boolean;
     multiFaceDetection: boolean;
-    screenRecording: boolean;
     fullScreenMode: boolean;
     videoRequired: boolean;
     micRequired: boolean;
     noTextTyping: boolean;
     timezone: string;
+    customQuestions?: string[];
+    aiSpecificRequirements?: string;
     createdAt?: string;
     candidates?: Candidate[];
+    candidateCount?: number;
+    sessionCount?: number;
 }

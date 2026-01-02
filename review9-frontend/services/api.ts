@@ -81,27 +81,34 @@ export const authApi = {
             body: JSON.stringify(data),
         });
     },
+
+    detectTimezone: async (ip?: string) => {
+        return apiRequest<{ timezone: string; location: string }>('/auth/detect-timezone', {
+            method: 'POST',
+            body: JSON.stringify({ ip }),
+        });
+    },
 };
 
 // Jobs API
 export const jobsApi = {
     getAll: async () => {
-        return apiRequest<JobPosting[]>('/jobs');
+        return apiRequest<any[]>('/jobs');
     },
 
     getById: async (id: string) => {
-        return apiRequest<JobPosting>(`/jobs/${id}`);
+        return apiRequest<any>(`/jobs/${id}`);
     },
 
     create: async (data: Partial<JobPosting>) => {
-        return apiRequest<JobPosting>('/jobs', {
+        return apiRequest<any>('/jobs', {
             method: 'POST',
             body: JSON.stringify(data),
         });
     },
 
     update: async (id: string, data: Partial<JobPosting>) => {
-        return apiRequest<JobPosting>(`/jobs/${id}`, {
+        return apiRequest<any>(`/jobs/${id}`, {
             method: 'PUT',
             body: JSON.stringify(data),
         });
@@ -168,6 +175,29 @@ export const jobsApi = {
             method: 'POST',
             body: JSON.stringify(data),
         });
+    },
+
+    getAnalytics: async (jobId: string) => {
+        return apiRequest<{
+            completionRate: number;
+            integrityRate: number;
+            fitCandidates: number;
+            completedSessions: number;
+            timeSavedHours: number;
+            scoreDistribution: number[];
+            incidentCounts: {
+                tab_switch: number;
+                eye_distraction: number;
+                multiple_faces: number;
+                no_face: number;
+                other: number;
+            };
+            statusCounts: Record<string, number>;
+        }>(`/jobs/${jobId}/analytics`);
+    },
+
+    getCompanyProfile: async (id: string) => {
+        return apiRequest<any>(`/companies/${id}`);
     }
 };
 
@@ -178,7 +208,7 @@ export const interviewsApi = {
     },
 
     getMyInvitations: async () => {
-        return apiRequest<Candidate[]>('/interviews/my-invitations');
+        return apiRequest<any[]>('/interviews/my-invitations');
     },
 
     getByToken: async (token: string) => {
@@ -313,6 +343,13 @@ export const billingApi = {
 
     createCheckoutSession: async (plan: 'PRO' | 'ULTRA') => {
         return apiRequest<{ url: string }>('/billing/checkout', {
+            method: 'POST',
+            body: JSON.stringify({ plan }),
+        });
+    },
+
+    subscribe: async (plan: SubscriptionPlan) => {
+        return apiRequest<{ success: boolean, message: string, user: User }>('/billing/subscribe', {
             method: 'POST',
             body: JSON.stringify({ plan }),
         });

@@ -26,12 +26,11 @@ export const NotificationDropdown = () => {
     const router = useRouter();
     const parentRef = useRef<HTMLDivElement>(null);
 
-    // Virtualization setup
     const rowVirtualizer = useVirtualizer({
         count: notifications.length,
         getScrollElement: () => parentRef.current,
-        estimateSize: () => 120, // Estimated height of each notification item
-        overscan: 5, // Render 5 extra items above and below viewport
+        estimateSize: () => 110,
+        overscan: 5,
     });
 
     const handleNotificationClick = (notification: Notification) => {
@@ -42,84 +41,70 @@ export const NotificationDropdown = () => {
         setIsOpen(false);
     };
 
-    // Infinite scroll trigger - improved detection
     useEffect(() => {
         if (!parentRef.current || !isOpen) return;
-
         const virtualItems = rowVirtualizer.getVirtualItems();
         if (virtualItems.length === 0) return;
-
         const lastItem = virtualItems[virtualItems.length - 1];
-
-        // Trigger when we're near the end (80% through the list)
-        // This provides a smoother experience
-        if (
-            lastItem.index >= notifications.length - 5 &&
-            hasNextPage &&
-            !isFetchingNextPage
-        ) {
+        if (lastItem.index >= notifications.length - 5 && hasNextPage && !isFetchingNextPage) {
             fetchNextPage();
         }
-    }, [
-        rowVirtualizer.getVirtualItems(),
-        notifications.length,
-        hasNextPage,
-        isFetchingNextPage,
-        fetchNextPage,
-        isOpen
-    ]);
+    }, [rowVirtualizer.getVirtualItems(), notifications.length, hasNextPage, isFetchingNextPage, fetchNextPage, isOpen]);
 
     return (
         <div className="relative">
             <button
                 onClick={() => setIsOpen(!isOpen)}
-                className="relative p-2 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors"
+                className="relative p-3 rounded-2xl bg-gray-50 border border-gray-100 hover:bg-gray-100 transition-all active:scale-95 group shadow-sm"
             >
-                <Bell className="w-5 h-5 text-gray-600" />
+                <Bell className="w-5 h-5 text-gray-400 group-hover:text-blue-600 transition-colors" />
                 {unreadCount > 0 && (
-                    <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-white">
+                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-blue-600 text-white text-[10px] font-black rounded-full flex items-center justify-center border-2 border-white shadow-lg">
                         {unreadCount > 9 ? '9+' : unreadCount}
                     </span>
                 )}
             </button>
 
             {isOpen && (
-                <div className="absolute right-0 mt-3 w-[400px] bg-white rounded-3xl shadow-2xl border border-gray-100 z-[100] overflow-hidden">
-                    <div className="p-5 border-b border-gray-50 flex items-center justify-between bg-gray-50/50">
-                        <div className="flex items-center space-x-2">
-                            <span className="p-1.5 bg-blue-100 text-blue-600 rounded-lg">
-                                <Bell className="w-4 h-4" />
-                            </span>
-                            <h3 className="font-black text-gray-900 uppercase tracking-widest text-xs">Notifications</h3>
+                <div className="absolute right-0 mt-4 w-[420px] bg-white rounded-[2.5rem] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.1)] border border-gray-100 z-[100] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-300">
+                    <div className="p-6 border-b border-gray-50 flex items-center justify-between bg-gray-50/10">
+                        <div className="flex items-center space-x-3">
+                            <div className="p-2.5 bg-blue-50 rounded-xl border border-blue-100">
+                                <Bell className="w-4 h-4 text-blue-600" />
+                            </div>
+                            <div>
+                                <h3 className="font-black text-slate-900 uppercase tracking-[0.2em] text-[10px]">Notifications</h3>
+                                <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">Control Center</p>
+                            </div>
                         </div>
                         {unreadCount > 0 && (
                             <button
                                 onClick={() => markAllAsRead()}
-                                className="text-[10px] font-black uppercase tracking-widest text-blue-600 hover:text-blue-700 transition-colors flex items-center"
+                                className="text-[10px] font-black uppercase tracking-widest text-blue-600 hover:text-blue-700 transition-all flex items-center bg-blue-50 px-3.5 py-1.5 rounded-full border border-blue-100"
                             >
-                                <CheckCheck className="w-3 h-3 mr-1" />
-                                Mark all read
+                                <CheckCheck className="w-3.5 h-3.5 mr-1.5" />
+                                Clear all
                             </button>
                         )}
                     </div>
 
                     <div
                         ref={parentRef}
-                        className="h-[500px] overflow-y-auto"
+                        className="h-[450px] overflow-y-auto scrollbar-hide py-2"
                         style={{ contain: 'strict' }}
                     >
                         {isLoading ? (
-                            <div className="py-20 flex flex-col items-center justify-center">
-                                <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
-                                <p className="text-sm text-gray-500 mt-3">Loading notifications...</p>
+                            <div className="h-full flex flex-col items-center justify-center space-y-4">
+                                <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+                                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Syncing alerts...</p>
                             </div>
                         ) : notifications.length === 0 ? (
-                            <div className="py-20 flex flex-col items-center justify-center text-center px-10">
-                                <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4">
+                            <div className="h-full flex flex-col items-center justify-center text-center px-10">
+                                <div className="w-20 h-20 bg-gray-50 rounded-[2rem] flex items-center justify-center mb-6 border border-gray-100 shadow-inner">
                                     <Bell className="w-8 h-8 text-gray-200" />
                                 </div>
-                                <p className="text-sm font-bold text-gray-900">All caught up!</p>
-                                <p className="text-xs text-gray-500 font-medium mt-1">No new notifications for you right now.</p>
+                                <h4 className="text-sm font-black text-slate-900 uppercase tracking-widest">Workspace Clear</h4>
+                                <p className="text-[11px] text-gray-400 font-medium mt-2">You have no new notifications at the moment.</p>
                             </div>
                         ) : (
                             <div
@@ -143,77 +128,72 @@ export const NotificationDropdown = () => {
                                                 width: '100%',
                                                 transform: `translateY(${virtualItem.start}px)`,
                                             }}
+                                            className="px-4 py-1"
                                         >
                                             <div
                                                 className={cn(
-                                                    "p-5 hover:bg-gray-50 transition-all cursor-pointer group flex items-start space-x-4 border-b border-gray-50",
-                                                    !notification.read && "bg-blue-50/30"
+                                                    "p-5 rounded-3xl transition-all cursor-pointer group flex items-start space-x-4 border border-transparent",
+                                                    !notification.read ? "bg-blue-50/50 border-blue-50 hover:bg-blue-50" : "hover:bg-gray-50"
                                                 )}
                                                 onClick={() => handleNotificationClick(notification)}
                                             >
                                                 <div className={cn(
-                                                    "w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-110",
-                                                    !notification.read ? "bg-blue-100 text-blue-600" : "bg-gray-100 text-gray-400"
+                                                    "w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 transition-all duration-500",
+                                                    !notification.read ? "bg-blue-600 shadow-lg shadow-blue-200 text-white" : "bg-gray-100 text-gray-400 group-hover:bg-white group-hover:shadow-sm"
                                                 )}>
                                                     <Mail className="w-5 h-5" />
                                                 </div>
                                                 <div className="flex-grow min-w-0">
                                                     <div className="flex items-start justify-between">
-                                                        <p className={cn(
-                                                            "text-sm font-bold truncate pr-4",
-                                                            !notification.read ? "text-gray-900" : "text-gray-600"
+                                                        <h5 className={cn(
+                                                            "text-xs font-black tracking-tight group-hover:text-blue-600 transition-colors uppercase",
+                                                            !notification.read ? "text-slate-900" : "text-gray-400"
                                                         )}>
                                                             {notification.title}
-                                                        </p>
+                                                        </h5>
                                                         <button
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
                                                                 deleteNotification(notification.id);
                                                             }}
-                                                            className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded-lg transition-all"
+                                                            className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-red-50 text-gray-300 hover:text-red-500 rounded-lg transition-all"
                                                         >
                                                             <Trash2 className="w-3.5 h-3.5" />
                                                         </button>
                                                     </div>
-                                                    <p className="text-xs text-gray-500 font-medium mt-1 line-clamp-2 leading-relaxed">
+                                                    <p className="text-[11px] text-gray-500 font-medium mt-1 line-clamp-2 leading-relaxed">
                                                         {notification.message}
                                                     </p>
-                                                    <div className="flex items-center mt-3 space-x-3">
-                                                        <span className="text-[10px] font-bold text-gray-400 flex items-center">
+                                                    <div className="flex items-center mt-3 space-x-4">
+                                                        <div className="flex items-center text-[9px] font-black text-gray-400 uppercase tracking-widest">
                                                             <Clock className="w-3 h-3 mr-1" />
                                                             {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true })}
-                                                        </span>
-                                                        {notification.link && (
-                                                            <span className="text-[10px] font-black uppercase tracking-widest text-blue-600 flex items-center">
-                                                                View Detail
-                                                                <ExternalLink className="w-2.5 h-2.5 ml-1" />
-                                                            </span>
-                                                        )}
+                                                        </div>
+                                                        {!notification.read && <div className="w-1.5 h-1.5 rounded-full bg-blue-600"></div>}
                                                     </div>
                                                 </div>
                                             </div>
                                         </div>
                                     );
                                 })}
-                                {isFetchingNextPage && (
-                                    <div className="py-4 flex items-center justify-center">
-                                        <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />
-                                        <span className="ml-2 text-xs text-gray-500">Loading more...</span>
-                                    </div>
-                                )}
                             </div>
                         )}
                     </div>
 
-                    <div className="p-4 bg-gray-50/50 border-t border-gray-50 text-center">
-                        <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 italic">Stay ahead with real-time updates</p>
+                    <div className="p-6 bg-gray-50/10 border-t border-gray-50 text-center">
+                        <button
+                            onClick={() => setIsOpen(false)}
+                            className="text-[9px] font-black uppercase tracking-[0.3em] text-gray-400 hover:text-slate-900 transition-colors"
+                        >
+                            Return to Dashboard
+                        </button>
                     </div>
                 </div>
             )}
 
             {isOpen && (
                 <div
-                    className="fixed inset-0 z-0"
+                    className="fixed inset-0 z-0 bg-slate-900/5 backdrop-blur-[2px]"
                     onClick={() => setIsOpen(false)}
                 />
             )}

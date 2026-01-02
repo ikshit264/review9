@@ -33,6 +33,8 @@ export const useInterviewPageApi = () => {
       queryKey: ['interview-token', token],
       queryFn: () => interviewsApi.getByToken(token),
       enabled: !!token && token !== 'demo',
+      refetchInterval: 120000, // Poll every 2 minutes
+      staleTime: 60000, // Consider data fresh for 1 minute
     });
   };
 

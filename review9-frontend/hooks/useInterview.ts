@@ -38,7 +38,8 @@ export const useInterview = (
   onAnswer?: (question: string, answer: string) => void,
   onProctoring?: (type: string, severity: string) => void,
   onTimeUp?: () => void,
-  sessionId?: string
+  sessionId?: string,
+  jobSettings?: JobPosting
 ) => {
   const [interviewStarted, setInterviewStarted] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -65,10 +66,18 @@ export const useInterview = (
   const currentStepRef = useRef(0);
   const systemStateRef = useRef<ConversationState>('IDLE');
   const isUserTurnRef = useRef(false);
+  const isProcessingMalpracticeRef = useRef(false);
+  const isPausedRef = useRef(false);
+  const lastProcessedTimeRef = useRef<number>(0);
 
   const setSystemStateWithRef = (newState: ConversationState) => {
     setSystemState(newState);
     systemStateRef.current = newState;
+  };
+
+  const setIsPausedWithRef = (paused: boolean) => {
+    setIsPaused(paused);
+    isPausedRef.current = paused;
   };
 
   useEffect(() => {
@@ -86,7 +95,8 @@ export const useInterview = (
     useInterviewByToken
   } = useInterviewPageApi();
 
-  const { data: interviewData } = useInterviewByToken(sessionId || "");
+  // Settings are now passed from the parent to avoid 404s and async races
+  const settings = jobSettings;
 
   const logProctoring = useCallback((type: ProctoringLog['type'], severity: ProctoringLog['severity']) => {
     setProctorLogs(prev => [{ timestamp: new Date(), type, severity }, ...prev]);
@@ -172,8 +182,8 @@ export const useInterview = (
     const userMsg = { id: Date.now().toString(), role: 'user' as const, text: answer, timestamp: new Date() };
     setChat(prev => [...prev, userMsg]);
 
-    const plan = interviewData?.job?.planAtCreation || user?.plan || SubscriptionPlan.FREE;
-    const isInteractive = APP_CONFIG.PLANS[plan].interactive;
+    const plan = settings?.planAtCreation || user?.plan || SubscriptionPlan.FREE;
+    const isInteractive = APP_CONFIG.PLANS[plan as keyof typeof APP_CONFIG.PLANS].interactive;
     const nextIdx = currentStepRef.current + 1;
 
     try {
@@ -197,11 +207,22 @@ export const useInterview = (
       } else {
         // PRO/ULTRA: Standard HTTP (Full response, No Streaming)
         const { reply } = await interviewsApi.respondToInterviewSync(sessionId, answer);
+
+        // Dynamic Question Injection: Append AI reply as the next question
+        setQuestions(prev => {
+          const newQs = [...prev];
+          newQs[nextIdx] = reply;
+          return newQs;
+        });
+
         speak(reply);
 
-        if (nextIdx < questions.length) {
+        const planConfig = APP_CONFIG.PLANS[plan as keyof typeof APP_CONFIG.PLANS];
+        const targetCount = planConfig.fixedQuestionCount || 8;
+
+        if (nextIdx < targetCount) {
           setCurrentStep(nextIdx);
-        } else if (chat.length > 20) {
+        } else {
           speak("This concludes our session.", async () => {
             await completeInterviewMutation.mutateAsync(sessionId);
             setInterviewStarted(false);
@@ -216,19 +237,21 @@ export const useInterview = (
 
     // End user's turn after submission
     setIsUserTurn(false);
-  }, [sessionId, user?.plan, questions, saveTranscriptMutation, completeInterviewMutation, speak, chat.length, interviewData]);
+  }, [sessionId, user?.plan, questions, saveTranscriptMutation, completeInterviewMutation, speak, chat.length, settings]);
 
   const acknowledgeWarning = useCallback(async () => {
     if (!sessionId) return;
     try {
+      console.log("[Interview] Acknowledging warning for session:", sessionId);
       await interviewsApi.acknowledgeWarning(sessionId);
-      setIsPaused(false);
+      setIsPausedWithRef(false);
+      isProcessingMalpracticeRef.current = false;
       setError(null);
       if (isUserTurnRef.current) {
         startListening();
       }
     } catch (err) {
-      console.error('Failed to acknowledge warning:', err);
+      console.error('[Interview] Failed to acknowledge warning:', err);
     }
   }, [sessionId, startListening]);
 
@@ -278,15 +301,18 @@ export const useInterview = (
       }
 
       const fullVisibleText = (finalTranscriptRef.current + " " + interim).trim();
-      setCandidateInterimText(fullVisibleText);
 
-      // Auto-submit logic after silence
-      if (isUserTurnRef.current && fullVisibleText.split(/\s+/).length >= (APP_CONFIG.SPEECH.minAutoSubmitLength || 5)) {
-        silenceTimerRef.current = setTimeout(() => {
-          if (isUserTurnRef.current && systemStateRef.current === 'LISTENING') {
-            handleUserAnswer(finalTranscriptRef.current + " " + interim);
-          }
-        }, APP_CONFIG.SPEECH.silenceTimeout || 4000);
+      if (!isPaused) {
+        setCandidateInterimText(prev => prev !== fullVisibleText ? fullVisibleText : prev);
+
+        // Auto-submit logic after silence
+        if (isUserTurnRef.current && fullVisibleText.split(/\s+/).length >= (APP_CONFIG.SPEECH.minAutoSubmitLength || 5)) {
+          silenceTimerRef.current = setTimeout(() => {
+            if (isUserTurnRef.current && systemStateRef.current === 'LISTENING') {
+              handleUserAnswer(finalTranscriptRef.current + " " + interim);
+            }
+          }, APP_CONFIG.SPEECH.silenceTimeout || 4000);
+        }
       }
     };
 
@@ -323,51 +349,155 @@ export const useInterview = (
   }, []); // Remove handleUserAnswer dependency to avoid unnecessary resets
 
   const handleMalpractice = useCallback(async (reason: string, type: 'tab_switch' | 'eye_tracking' | 'face_detection') => {
-    if (!interviewStarted || !sessionId || isPaused) return;
+    // Cooldown logic to prevent duplicate rapid-fire alerts (e.g. blur + visibilitychange + fullscreenexit)
+    const now = Date.now();
+    if (isProcessingMalpracticeRef.current || (lastProcessedTimeRef.current && now - lastProcessedTimeRef.current < 2000)) {
+      console.log("[Interview] Malpractice handling suppressed (cooldown or active).");
+      return;
+    }
 
-    const settings = interviewData?.job;
-    if (type === 'tab_switch' && !settings?.tabTracking) return;
-    if (type === 'eye_tracking' && !settings?.eyeTracking) return;
-    if (type === 'face_detection' && !settings?.multiFaceDetection) return;
+    if (!interviewStarted || !sessionId || isFlagged || isPausedRef.current) return;
 
-    setIsPaused(true);
+    isProcessingMalpracticeRef.current = true;
+    lastProcessedTimeRef.current = now;
+    setIsPausedWithRef(true);
+
+    console.log(`[Interview] Malpractice detected: ${type} - ${reason}`);
+
+    const isDemoSession = sessionId === 'demo-session';
+    const activeSettings = isDemoSession ? {
+      tabTracking: true,
+      eyeTracking: true,
+      multiFaceDetection: true,
+      fullScreenMode: true
+    } : settings;
+
+    // Strict Full-Screen Check: Always override reason if FS is required but missing
+    const isFsActive = !!(document.fullscreenElement || (document as any).webkitFullscreenElement || (document as any).msFullscreenElement);
+    if (activeSettings?.fullScreenMode && !isFsActive) {
+      reason = "Secure full-screen mode was exited. Please re-enable it to continue.";
+      type = 'face_detection';
+    }
+
+    // Settings-based filtering
+    if (type === 'tab_switch' && !activeSettings?.tabTracking) {
+      isProcessingMalpracticeRef.current = false;
+      setIsPausedWithRef(false);
+      return;
+    }
+    if (type === 'eye_tracking' && !activeSettings?.eyeTracking) {
+      isProcessingMalpracticeRef.current = false;
+      setIsPausedWithRef(false);
+      return;
+    }
+    if (type === 'face_detection' && !activeSettings?.multiFaceDetection && !activeSettings?.fullScreenMode) {
+      isProcessingMalpracticeRef.current = false;
+      setIsPausedWithRef(false);
+      return;
+    }
+
     stopSpeaking();
     if (recognitionRef.current) {
-      recognitionRef.current.stop();
+      try { recognitionRef.current.stop(); } catch (e) { }
     }
 
     try {
-      const result = await interviewsApi.logProctoring(sessionId, { type, severity: 'high' });
-      setWarningCount(result.warningCount);
-
-      if (result.status === 'FLAGGED') {
-        setIsFlagged(true);
-        setError(`Interview Terminated: Too many malpractice warnings.`);
-        setInterviewStarted(false);
-      } else if (result.status === 'WARNING') {
-        setError(`Warning ${result.warningCount}/3: ${reason}. Please acknowledge to continue.`);
+      let result;
+      if (!isDemoSession) {
+        result = await interviewsApi.logProctoring(sessionId, { type, severity: 'high' });
       } else {
-        setError(`Proctoring Alert: ${reason}`);
+        const nextCount = warningCount + 1;
+        result = { warningCount: nextCount, status: nextCount > 3 ? 'FLAGGED' : 'WARNING' };
+      }
+
+      const newWarningCount = result.warningCount;
+      const status = result.status as 'WARNING' | 'FLAGGED';
+
+      setWarningCount(newWarningCount);
+
+      if (status === 'FLAGGED' || newWarningCount > 3) {
+        setIsFlagged(true);
+        setError(`Interview Flagged: Persistent security violations (${newWarningCount}/3). This session is now locked for review.`);
+      } else {
+        setError(`Security Warning ${newWarningCount}/3: ${reason}`);
       }
 
       logProctoring(type, 'high');
     } catch (err) {
       console.error('Failed to log proctoring:', err);
+      // Fallback local enforcement
+      const nextCount = warningCount + 1;
+      setWarningCount(nextCount);
+      if (nextCount > 3) setIsFlagged(true);
+      setError(`Security Warning ${nextCount}/3: ${reason}`);
+    } finally {
+      // Small delay before allowing next malpractice to ensure UI reflects state
+      setTimeout(() => {
+        isProcessingMalpracticeRef.current = false;
+      }, 500);
     }
-  }, [interviewStarted, sessionId, isPaused, stopSpeaking, logProctoring, interviewData]);
+  }, [interviewStarted, sessionId, isFlagged, stopSpeaking, logProctoring, settings, warningCount]);
 
+  // Integrated Proctoring Listeners
   useEffect(() => {
+    if (!interviewStarted || isFlagged) return;
+
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        handleMalpractice('Tab switched or minimized', 'tab_switch');
+      if (document.visibilityState === 'hidden' && !isPausedRef.current) {
+        handleMalpractice('Tab switched or browser minimized.', 'tab_switch');
       }
     };
+
+    const handleBlur = () => {
+      // Small timeout to skip focus loss to native browser dialogs (like mic permission)
+      setTimeout(() => {
+        if (!isPausedRef.current && document.visibilityState === 'visible') {
+          // Only trigger if window is still visible but lost focus (e.g. alt-tab or another app)
+          handleMalpractice('Security alert: Focus lost. Please stay within the interview window.', 'tab_switch');
+        }
+      }, 100);
+    };
+
+    const handleFullscreenChange = () => {
+      const isFs = !!(document.fullscreenElement || (document as any).webkitFullscreenElement || (document as any).msFullscreenElement);
+      if (settings?.fullScreenMode && !isFs && !isPausedRef.current) {
+        handleMalpractice('Secure environment exited. Standard window mode is not allowed.', 'face_detection');
+      }
+    };
+
+    const blockCheat = (e: KeyboardEvent) => {
+      // F12, Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+Shift+C, Ctrl+U
+      if (
+        e.key === 'F12' ||
+        (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J' || e.key === 'C')) ||
+        (e.ctrlKey && (e.key === 'u' || e.key === 'U'))
+      ) {
+        e.preventDefault();
+        setError("Developer tools are strictly prohibited during the session.");
+      }
+    };
+
+    const preventContextMenu = (e: MouseEvent) => e.preventDefault();
+
     window.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => window.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [handleMalpractice]);
+    window.addEventListener('blur', handleBlur);
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    window.addEventListener('keydown', blockCheat);
+    window.addEventListener('contextmenu', preventContextMenu);
+
+    return () => {
+      window.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('blur', handleBlur);
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      window.removeEventListener('keydown', blockCheat);
+      window.removeEventListener('contextmenu', preventContextMenu);
+    };
+  }, [interviewStarted, isFlagged, handleMalpractice, settings?.fullScreenMode]);
 
   useEffect(() => {
-    if (!interviewStarted || timeLeft === null) return;
+    if (!interviewStarted || timeLeft === null || isPaused) return;
 
     if (timeLeft <= 0) {
       setInterviewStarted(false);
@@ -380,14 +510,24 @@ export const useInterview = (
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [interviewStarted, timeLeft, speak, onTimeUp]);
+  }, [interviewStarted, timeLeft, isPaused, onTimeUp]);
 
   const startInterview = async () => {
     if (!sessionId) return;
+
+    // Final check for fullscreen if required
+    if (settings?.fullScreenMode) {
+      const isFs = !!(document.fullscreenElement || (document as any).webkitFullscreenElement || (document as any).msFullscreenElement);
+      if (!isFs) {
+        setError("Secure Full Screen must be enabled before launching the session.");
+        return;
+      }
+    }
+
     setInterviewStarted(true);
     setIsPaused(false);
 
-    const plan = interviewData?.job?.planAtCreation || user?.plan || SubscriptionPlan.FREE;
+    const plan = settings?.planAtCreation || user?.plan || SubscriptionPlan.FREE;
     setTimeLeft(plan === SubscriptionPlan.FREE ? 25 * 60 : 45 * 60);
 
     try {
@@ -395,13 +535,13 @@ export const useInterview = (
       setQuestions(initialQs);
       speak(initialQs[0]);
     } catch (err) {
-      setError("Init failed.");
+      setError("Initialization failed. Please refresh.");
     }
   };
 
   // Trigger STT when turn starts
   useEffect(() => {
-    if (isUserTurn) {
+    if (isUserTurn && !isPaused) {
       finalTranscriptRef.current = "";
       setCandidateInterimText("");
       startListening();
@@ -410,7 +550,7 @@ export const useInterview = (
         recognitionRef.current.stop();
       }
     }
-  }, [isUserTurn, startListening]);
+  }, [isUserTurn, isPaused, startListening]);
 
   return {
     interviewStarted,
@@ -433,12 +573,14 @@ export const useInterview = (
     isSTTProcessing,
     isUserTurn,
     warningCount,
+    targetQuestionCount: APP_CONFIG.PLANS[(settings?.planAtCreation || user?.plan || SubscriptionPlan.FREE) as keyof typeof APP_CONFIG.PLANS].fixedQuestionCount || 8,
     setIsUserTurn,
     startInterview,
     logProctoring,
     submitManualAnswer: (text: string) => handleUserAnswer(text),
     acknowledgeWarning,
     stopSpeaking,
-    clearError: () => setError(null)
+    clearError: () => setError(null),
+    handleMalpractice
   };
 };

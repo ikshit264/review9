@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useStore } from '@/store/useStore';
 import { JobDetailLayout } from '@/components/JobDetailLayout';
 import { Card, Input, Button, LoadingButton } from '@/components/UI';
+import { LoadingOverlay } from '@/components/LoadingOverlay';
 import { SubscriptionPlan, ProctoringSettings } from '@/types';
 import { useJobApi } from '@/hooks/api/useJobApi';
 import { jobsApi } from '@/services/api';
@@ -27,12 +28,11 @@ export default function JobEdit() {
   const router = useRouter();
   const jobId = params.jobId as string;
   const companyName = params.companyName as string;
-  const { jobs: storeJobs, updateJob: updateLocalJob, user } = useStore();
+  const { user } = useStore();
   const { useJobQuery } = useJobApi(jobId);
   const { data: backendJob, isLoading, refetch } = useJobQuery();
 
-  const storeJob = storeJobs.find(j => j.id === jobId);
-  const job = backendJob || storeJob;
+  const job = backendJob;
 
   const [formData, setFormData] = useState({
     title: '',
@@ -44,10 +44,12 @@ export default function JobEdit() {
     tabTracking: true,
     eyeTracking: false,
     multiFaceDetection: false,
-    screenRecording: false,
     fullScreenMode: false,
     noTextTyping: false,
   });
+
+  const [customQuestions, setCustomQuestions] = useState<string[]>(['']);
+  const [aiRequirements, setAiRequirements] = useState('');
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -64,10 +66,11 @@ export default function JobEdit() {
         tabTracking: job.tabTracking ?? true,
         eyeTracking: job.eyeTracking ?? false,
         multiFaceDetection: job.multiFaceDetection ?? false,
-        screenRecording: job.screenRecording ?? false,
         fullScreenMode: job.fullScreenMode ?? false,
         noTextTyping: job.noTextTyping ?? false,
       });
+      setCustomQuestions(job.customQuestions && job.customQuestions.length > 0 ? job.customQuestions : ['']);
+      setAiRequirements(job.aiSpecificRequirements || '');
     }
   }, [job]);
 
@@ -91,19 +94,18 @@ export default function JobEdit() {
     setError(null);
 
     try {
+      const filteredQuestions = customQuestions.filter(q => q.trim() !== '');
+
       await jobsApi.update(jobId, {
         title: formData.title,
         roleCategory: formData.role,
         description: formData.description,
         ...proctoring,
+        customQuestions: filteredQuestions.length > 0 ? filteredQuestions : undefined,
+        aiSpecificRequirements: aiRequirements.trim() || undefined,
       });
 
-      // Also update local store for consistency
-      if (updateLocalJob && storeJob) {
-        updateLocalJob({ ...storeJob, ...formData, ...proctoring } as any);
-      }
-
-      // Refetch job data
+      // Refetch job data to get updated values
       await refetch();
 
       alert('Settings updated successfully!');
@@ -121,6 +123,7 @@ export default function JobEdit() {
 
   return (
     <JobDetailLayout jobTitle={job?.title || 'Loading...'} companyName={companyName || job?.companyName || ''}>
+      <LoadingOverlay isLoading={saving} message="Saving job changes..." />
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
           <Card className="p-8 shadow-xl border-none">
@@ -146,6 +149,57 @@ export default function JobEdit() {
               </div>
             </div>
           </Card>
+
+          <Card className="p-8 shadow-xl border-none">
+            <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-3">🎯 Custom Interview Questions</h3>
+            <p className="text-xs text-gray-500 mb-4">Add specific questions you want the AI to ask in every interview</p>
+
+            <div className="space-y-2">
+              {customQuestions.map((question, index) => (
+                <div key={index} className="flex gap-2">
+                  <input
+                    type="text"
+                    value={question}
+                    onChange={(e) => {
+                      const newQuestions = [...customQuestions];
+                      newQuestions[index] = e.target.value;
+                      setCustomQuestions(newQuestions);
+                    }}
+                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm"
+                    placeholder={`Question ${index + 1}`}
+                  />
+                  {customQuestions.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => setCustomQuestions(customQuestions.filter((_, i) => i !== index))}
+                      className="px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={() => setCustomQuestions([...customQuestions, ''])}
+                className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+              >
+                + Add Question
+              </button>
+            </div>
+          </Card>
+
+          <Card className="p-8 shadow-xl border-none">
+            <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-3">🤖 AI-Specific Requirements</h3>
+            <p className="text-xs text-gray-500 mb-4">Provide additional context for the AI to generate better questions and evaluations</p>
+            <textarea
+              value={aiRequirements}
+              onChange={(e) => setAiRequirements(e.target.value)}
+              rows={4}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm leading-relaxed"
+              placeholder="e.g., Focus on React 18+ features, TypeScript proficiency, and micro-frontend architecture experience..."
+            />
+          </Card>
         </div>
 
         <div className="space-y-6">
@@ -157,23 +211,20 @@ export default function JobEdit() {
                 enabled={proctoring.tabTracking}
                 onClick={() => handleToggle('tabTracking')}
               />
-              <ToggleRow
-                label="Eye Tracking"
-                enabled={proctoring.eyeTracking}
-                onClick={() => handleToggle('eyeTracking')}
-                locked={job?.planAtCreation === SubscriptionPlan.FREE}
-              />
-              <ToggleRow
-                label="Face Detection"
-                enabled={proctoring.multiFaceDetection}
-                onClick={() => handleToggle('multiFaceDetection')}
-                locked={job?.planAtCreation !== SubscriptionPlan.ULTRA}
-              />
-              <ToggleRow
-                label="Screen Sharing"
-                enabled={proctoring.screenRecording}
-                onClick={() => handleToggle('screenRecording')}
-              />
+              {job?.planAtCreation !== SubscriptionPlan.FREE && (
+                <ToggleRow
+                  label="Eye Tracking"
+                  enabled={proctoring.eyeTracking}
+                  onClick={() => handleToggle('eyeTracking')}
+                />
+              )}
+              {job?.planAtCreation === SubscriptionPlan.ULTRA && (
+                <ToggleRow
+                  label="Multi-Face Detection"
+                  enabled={proctoring.multiFaceDetection}
+                  onClick={() => handleToggle('multiFaceDetection')}
+                />
+              )}
               <ToggleRow
                 label="Strict Full Screen"
                 enabled={proctoring.fullScreenMode}

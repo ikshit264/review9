@@ -14,6 +14,9 @@ import { APP_CONFIG } from '@/config';
 import { cn } from '@/lib/utils';
 import { jobsApi, interviewsApi } from '@/services/api';
 import { useToast } from '@/hooks/useToast';
+import { useProctoring } from '@/hooks/proctoring/useProctoring';
+import { useRef } from 'react';
+import { CheckCircle2, Circle, Monitor, Camera, Mic, Layout, ShieldAlert } from 'lucide-react';
 
 export default function InterviewPage() {
   const params = useParams();
@@ -54,9 +57,11 @@ export default function InterviewPage() {
       eyeTracking: true,
       multiFaceDetection: true,
       screenRecording: true,
+      fullScreenMode: true,
+      noTextTyping: true,
       companyId: 'demo-company',
       timezone: 'UTC',
-      planAtCreation: SubscriptionPlan.FREE
+      planAtCreation: SubscriptionPlan.ULTRA
     }
   } as (Candidate & { job: JobPosting }) : (backendInfo as (Candidate & { job: JobPosting }));
 
@@ -73,6 +78,17 @@ export default function InterviewPage() {
   const [isWaiting, setIsWaiting] = useState(false);
   const [isExpired, setIsExpired] = useState(false);
   const [timeToWait, setTimeToWait] = useState<number>(0);
+
+  // Security Verification State
+  const [securityStatus, setSecurityStatus] = useState({
+    fullscreen: false,
+    camera: false,
+    mic: false,
+    screenShare: false,
+  });
+
+  const [redirectCountdown, setRedirectCountdown] = useState<number | null>(null);
+  const [redirectReason, setRedirectReason] = useState<string>('');
 
   // Persistence callbacks
   const handleAnswer = useCallback((question: string, answer: string) => {
@@ -112,6 +128,7 @@ export default function InterviewPage() {
     aiActiveText,
     aiHighlightIndex,
     candidateInterimText,
+    targetQuestionCount,
     setCandidateInterimText,
     timeLeft,
     isPaused,
@@ -125,8 +142,42 @@ export default function InterviewPage() {
     logProctoring,
     submitManualAnswer,
     acknowledgeWarning,
+    handleMalpractice,
     clearError
-  } = useInterview(user, resumeText, handleAnswer, handleProctoring, () => finalizeSession('time_up'), sessionId || undefined);
+  } = useInterview(user, resumeText, handleAnswer, handleProctoring, () => finalizeSession('time_up'), sessionId || undefined, interviewInfo?.job);
+
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  // Advanced Proctoring Hook Integration
+  const { isReady: proctoringReady, metrics: proctoringMetrics } = useProctoring({
+    videoRef,
+    enabled: interviewStarted && !isPaused && !isFlagged,
+    onEvent: (event) => {
+      let reason = "";
+      let type: 'tab_switch' | 'eye_tracking' | 'face_detection' = 'tab_switch';
+
+      switch (event.type) {
+        case 'multiple_faces':
+          reason = "Multiple faces detected";
+          type = 'face_detection';
+          handleMalpractice(reason, type);
+          break;
+        case 'no_face':
+          reason = "No face detected";
+          type = 'face_detection';
+          handleMalpractice(reason, type);
+          break;
+        case 'attention_deviation':
+          // Eye tracking: Show toast warning only, don't flag
+          toast.warning("⚠️ Please maintain focus on the screen", 3000);
+          // Log for analytics but don't pause
+          if (sessionId && !isDemo) {
+            handleProctoring('eye_tracking', 'low', 'Attention deviation detected');
+          }
+          break;
+      }
+    }
+  });
 
   // Handle system errors with toasts
   useEffect(() => {
@@ -174,6 +225,14 @@ export default function InterviewPage() {
 
   // Handle status update to INVITED when candidate opens the page
   useEffect(() => {
+    const terminalStatuses = ['COMPLETED', 'REVIEW', 'REJECTED', 'CONSIDERED', 'SHORTLISTED', 'EXPIRED'];
+    if (interviewInfo && (terminalStatuses.includes(interviewInfo.status) || isExpired)) {
+      if (redirectCountdown === null && !isFinishing && !interviewStarted) {
+        setRedirectReason(isExpired ? "Time Expired" : "Interview Ended");
+        setRedirectCountdown(3);
+      }
+    }
+
     if (interviewInfo && interviewInfo.status === 'PENDING') {
       const updateStatus = async () => {
         try {
@@ -184,43 +243,48 @@ export default function InterviewPage() {
       };
       updateStatus();
     }
-  }, [interviewInfo]);
+  }, [interviewInfo, isExpired, redirectCountdown, isFinishing, interviewStarted]);
 
-  // Periodic polling to check interview status (every 2 minutes)
+  // Redirection timer components
   useEffect(() => {
-    if (isDemo || !token) return;
-
-    const checkStatus = async () => {
-      try {
-        const status = await interviewsApi.getInterviewStatus(token);
-        // Update local state if needed based on status changes
-        console.log('[Interview] Status check:', status);
-      } catch (err) {
-        console.error('[Interview] Status check failed:', err);
+    if (redirectCountdown !== null) {
+      if (redirectCountdown <= 0) {
+        router.push('/dashboard');
+        return;
       }
-    };
-
-    // Initial check
-    checkStatus();
-
-    // Poll every 2 minutes (120000ms)
-    const interval = setInterval(checkStatus, 120000);
-    return () => clearInterval(interval);
-  }, [token, isDemo]);
+      const timer = setTimeout(() => setRedirectCountdown(prev => (prev !== null ? prev - 1 : null)), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [redirectCountdown, router]);
 
   // Handle waiting logic with candidate-specific windows
   useEffect(() => {
     if (interviewInfo?.interviewStartTime || interviewInfo?.job?.interviewStartTime) {
       const startTime = new Date(interviewInfo.interviewStartTime || interviewInfo.job.interviewStartTime).getTime();
-      const endTime = new Date(interviewInfo.interviewEndTime || interviewInfo.job.interviewEndTime).getTime();
+      let endTimeDate = new Date(interviewInfo.interviewEndTime || interviewInfo.job.interviewEndTime);
+
+      // Rule: if requested for re-interview, extend by 2 hours
+      if ((interviewInfo as any).isReInterviewed) {
+        endTimeDate = new Date(endTimeDate.getTime() + 2 * 60 * 60 * 1000);
+      }
+      const endTime = endTimeDate.getTime();
 
       const update = () => {
         const now = Date.now();
         const diffToStart = startTime - now;
         const diffToEnd = endTime - now;
 
-        // Check if interview has expired
-        if (diffToEnd <= 0) {
+        // Don't mark as expired if:
+        // 1. Interview has started (session exists) - matches backend logic
+        // 2. Time is still left (diffToEnd > 0)
+        const hasTimeLeft = diffToEnd > 0;
+        const interviewStarted = sessionId !== null;
+
+        // Only mark as expired if:
+        // - No time left AND
+        // - Interview hasn't started
+        // This matches backend: don't expire if session is ongoing
+        if (diffToEnd <= 0 && !interviewStarted) {
           setIsWaiting(false);
           setIsExpired(true);
           return;
@@ -242,7 +306,7 @@ export default function InterviewPage() {
       const interval = setInterval(update, 1000);
       return () => clearInterval(interval);
     }
-  }, [interviewInfo]);
+  }, [interviewInfo, sessionId]);
 
   const formatWaitTime = (seconds: number) => {
     const h = Math.floor(seconds / 3600);
@@ -259,7 +323,6 @@ export default function InterviewPage() {
       const reader = new FileReader();
       reader.onloadend = async () => {
         const base64String = reader.result as string;
-        // Mocking text extraction for now, usually needs a specialist API or model
         const mockExtracted = `Profile: ${user?.name}. Senior Dev. Skills: React, TypeScript, Node.`;
 
         setResumeText(mockExtracted);
@@ -288,6 +351,92 @@ export default function InterviewPage() {
     }
   };
 
+  const verifyCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      setIsCamOn(true);
+      setSecurityStatus(prev => ({ ...prev, camera: true }));
+      // Be careful: if we stop the stream, VideoFeed might not show it later if it doesn't re-request
+      // Usually VideoFeed will request its own stream, so this is just for verification
+      stream.getTracks().forEach(t => t.stop());
+    } catch (err) {
+      toast.error("Camera access denied.");
+    }
+  };
+
+  const verifyMic = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      setIsMicOn(true);
+      setSecurityStatus(prev => ({ ...prev, mic: true }));
+      stream.getTracks().forEach(t => t.stop());
+    } catch (err) {
+      toast.error("Microphone access denied.");
+    }
+  };
+
+  const verifyFullscreen = async () => {
+    try {
+      const elem = document.documentElement;
+      if (!document.fullscreenElement) {
+        if (elem.requestFullscreen) {
+          await elem.requestFullscreen();
+        } else if ((elem as any).webkitRequestFullscreen) {
+          await (elem as any).webkitRequestFullscreen();
+        } else if ((elem as any).msRequestFullscreen) {
+          await (elem as any).msRequestFullscreen();
+        }
+      }
+      setSecurityStatus(prev => ({ ...prev, fullscreen: true }));
+      toast.success("Secure Full Screen Enabled");
+    } catch (err) {
+      console.error("Fullscreen failed:", err);
+      toast.error("Fullscreen request failed. Please enable it to continue.");
+    }
+  };
+
+  const verifyScreenShare = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: true,
+        // Hint to prefer current tab or entire screen if needed
+      });
+      setSecurityStatus(prev => ({ ...prev, screenShare: true }));
+      // Keep track of the stream to ensure it's still active
+      stream.getTracks().forEach(t => {
+        t.onended = () => {
+          setSecurityStatus(prev => ({ ...prev, screenShare: false }));
+          if (interviewStarted) {
+            handleMalpractice("Screen sharing was stopped.", "tab_switch");
+          }
+        };
+      });
+      toast.success("Screen Sharing Verified");
+    } catch (err) {
+      console.error("Screen share failed:", err);
+      toast.error("Screen sharing permission is required.");
+    }
+  };
+
+  // Sync security status with actual browser state
+  useEffect(() => {
+    const handleFsChange = () => {
+      const isFs = !!(document.fullscreenElement || (document as any).webkitFullscreenElement || (document as any).msFullscreenElement);
+      setSecurityStatus(prev => ({ ...prev, fullscreen: isFs }));
+    };
+    document.addEventListener('fullscreenchange', handleFsChange);
+    document.addEventListener('webkitfullscreenchange', handleFsChange);
+    document.addEventListener('mozfullscreenchange', handleFsChange);
+    document.addEventListener('MSFullscreenChange', handleFsChange);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFsChange);
+      document.removeEventListener('webkitfullscreenchange', handleFsChange);
+      document.removeEventListener('mozfullscreenchange', handleFsChange);
+      document.removeEventListener('MSFullscreenChange', handleFsChange);
+    };
+  }, []);
+
   // Automatically use profile resume on mount if available
   useEffect(() => {
     if (user?.resumeUrl && !isResumeSubmitted) {
@@ -300,23 +449,43 @@ export default function InterviewPage() {
   }, [user, isResumeSubmitted]);
 
   const handleStart = async () => {
+    const settings = interviewInfo?.job;
+
+    // 1. Strict Full-Screen Gate (Enforced for both Demo and Real)
+    if (settings?.fullScreenMode && !document.fullscreenElement) {
+      try {
+        console.log("[Interview] Full-screen required. Requesting...");
+        await verifyFullscreen();
+        // Check again after request - some browsers might delay the state update
+        if (!document.fullscreenElement && !(document as any).webkitFullscreenElement) {
+          throw new Error("Fullscreen not active");
+        }
+      } catch (err) {
+        toast.error("Full screen mode is strictly required to begin.");
+        return;
+      }
+    }
+
+    // 2. Strict Screen Recording Gate (Enforced for both Demo and Real)
+    if (settings?.screenRecording && !securityStatus.screenShare) {
+      try {
+        await verifyScreenShare();
+        if (!securityStatus.screenShare) throw new Error("Screen share not active");
+      } catch (err) {
+        toast.error("Screen sharing is strictly required.");
+        return;
+      }
+    }
+
     if (isDemo) {
       setSessionId('demo-session');
       startInterview();
       return;
     }
 
-    const settings = interviewInfo?.job;
-    if (settings?.fullScreenMode && !document.fullscreenElement) {
-      try {
-        await document.documentElement.requestFullscreen();
-      } catch (err) {
-        toast.error("Full screen is required for this interview. Please enable it to continue.");
-        return;
-      }
-    }
-
+    // 3. Start Real Session only after security gated
     try {
+      console.log("[Interview] Security checks passed. Initializing session...");
       const session = await startInterviewMutation.mutateAsync({
         interviewToken: token,
         resumeUrl,
@@ -326,27 +495,60 @@ export default function InterviewPage() {
       startInterview();
     } catch (err) {
       console.error("Failed to start session:", err);
+      toast.error("An error occurred while starting the session.");
     }
   };
 
-  // Full screen enforcement listener
+  // Full screen & Anti-cheat enforcement listener
   useEffect(() => {
-    const settings = interviewInfo?.job;
-    if (!settings?.fullScreenMode || !interviewStarted) return;
+    const preventContextMenu = (e: MouseEvent) => e.preventDefault();
 
-    const handleFullscreenChange = () => {
-      if (!document.fullscreenElement && !isPaused && !isFinishing) {
-        handleProctoring('abrupt_end', 'high', 'Exited full screen mode');
-      }
+    window.addEventListener('contextmenu', preventContextMenu);
+    return () => {
+      window.removeEventListener('contextmenu', preventContextMenu);
     };
-
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
-  }, [interviewInfo, interviewStarted, isPaused, isFinishing, handleProctoring]);
+  }, [interviewStarted, isFinishing]);
 
   if (!user) {
     router.push('/login');
     return null;
+  }
+
+  if (redirectCountdown !== null) {
+    return (
+      <div className="min-h-screen bg-[#202124] flex flex-col items-center justify-center p-8 text-white">
+        <div className="w-20 h-20 bg-red-500/20 text-red-500 rounded-[2rem] flex items-center justify-center mb-8 border border-red-500/30 animate-pulse">
+          <ShieldAlert className="w-10 h-10" />
+        </div>
+        <h2 className="text-4xl font-black mb-4 uppercase tracking-tighter">Interview Ended</h2>
+        <p className="text-gray-400 font-medium text-center max-w-sm mb-8">
+          {redirectReason === "Time Expired"
+            ? "The assessment window has expired."
+            : "You have already completed this session."}
+        </p>
+        <div className="flex items-center space-x-3 text-sm font-black uppercase tracking-widest text-blue-400">
+          <span>Redirecting to Dashboard</span>
+          <div className="w-6 h-6 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"></div>
+        </div>
+      </div>
+    );
+  }
+
+  if (interviewInfo?.status === 'COMPLETED' || interviewInfo?.status === 'REVIEW') {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-8">
+        <div className="max-w-md w-full bg-white rounded-[2.5rem] shadow-2xl p-10 text-center border border-gray-100">
+          <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-3xl flex items-center justify-center mx-auto mb-6">
+            <CheckCircle2 className="w-10 h-10" />
+          </div>
+          <h2 className="text-2xl font-black text-gray-900 mb-2 uppercase tracking-tight">Interview Completed</h2>
+          <p className="text-gray-500 font-medium mb-8 text-sm">You have already completed this assessment. The results are being processed.</p>
+          <Button onClick={() => router.push('/dashboard')} className="w-full py-4 rounded-xl font-bold uppercase tracking-widest bg-emerald-600 hover:bg-emerald-700 text-white">
+            Go to Dashboard
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   if (infoLoading) {
@@ -370,6 +572,28 @@ export default function InterviewPage() {
     );
   }
 
+  // 1. Privacy Consent
+  if (!isJoined) {
+    return (
+      <div className="min-h-screen bg-black/80 backdrop-blur-md flex items-center justify-center p-6 bg-meet">
+        <div className="max-w-md w-full bg-[#161618] border border-white/10 rounded-[2.5rem] p-10 shadow-2xl">
+          <h2 className="text-2xl font-black text-white mb-6 uppercase tracking-tight">Privacy & Proctoring</h2>
+          <div className="space-y-4 text-gray-400 text-sm leading-relaxed mb-8">
+            <p>To ensure interview integrity, this session uses **real-time local proctoring**.</p>
+            <p>Our system analyzes your camera feed directly in your browser to detect attention signals and multiple faces.</p>
+            <p className="p-3 bg-blue-600/10 rounded-xl border border-blue-500/20 text-blue-400 font-bold italic">
+              ⚠️ No video, images, or biometric data ever leave your device or are stored on our servers.
+            </p>
+          </div>
+          <Button onClick={() => setIsJoined(true)} className="w-full py-4 rounded-2xl text-lg font-black uppercase tracking-widest bg-blue-600 hover:bg-blue-700 shadow-xl shadow-blue-500/20">
+            I Understand & Consent
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // 2. Waiting Room
   if (isWaiting) {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-8">
@@ -379,7 +603,6 @@ export default function InterviewPage() {
           </div>
           <h2 className="text-3xl font-black text-gray-900 mb-2">Ready for your Interview?</h2>
           <p className="text-gray-500 font-medium mb-8">The AI interviewer will be ready in <span className="text-blue-600 font-bold">{formatWaitTime(timeToWait)}</span></p>
-
           <div className="bg-gray-50 rounded-2xl p-8 text-left border border-gray-100 mb-8">
             <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-4">Job Details</h3>
             <p className="text-xl font-bold text-gray-900 mb-1">{interviewInfo?.job?.title}</p>
@@ -387,177 +610,194 @@ export default function InterviewPage() {
             <div className="h-[1px] bg-gray-200 mb-4"></div>
             <p className="text-sm text-gray-600 leading-relaxed font-medium line-clamp-4">{interviewInfo?.job?.description}</p>
           </div>
-
           <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 italic">Please stay on this page. The session will start automatically.</p>
         </div>
       </div>
     );
   }
 
-  if (!isJoined) {
-    return (
-      <div className="min-h-screen bg-[#F8F9FA] flex flex-col items-center justify-center p-8">
-        <div className="max-w-4xl w-full bg-white rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col md:flex-row border border-gray-100">
-          <div className="md:w-1/2 bg-gray-900 p-8 flex flex-col items-center justify-center">
-            <div className="w-full aspect-video bg-gray-800 rounded-3xl mb-6 border border-white/5 flex items-center justify-center">
-              <svg className="w-20 h-20 text-white/10" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 9a1 1 0 100-2 1 1 0 000 2zm7-1a1 1 0 11-2 0 1 1 0 012 0zm-7.53 6.47a1 1 0 011.415 0 3.5 3.5 0 004.23 0 1 1 0 111.415 1.414 5.5 5.5 0 01-7.06 0 1 1 0 010-1.414z" clipRule="evenodd" /></svg>
-            </div>
-            <div className="flex space-x-3">
-              <button onClick={() => setIsMicOn(!isMicOn)} className={`w-12 h-12 rounded-full flex items-center justify-center ${isMicOn ? 'bg-white/10 text-white' : 'bg-red-500 text-white'}`}><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg></button>
-              <button onClick={() => setIsCamOn(!isCamOn)} className={`w-12 h-12 rounded-full flex items-center justify-center ${isCamOn ? 'bg-white/10 text-white' : 'bg-red-500 text-white'}`}><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg></button>
-            </div>
-          </div>
-          <div className="md:w-1/2 p-12 flex flex-col justify-center">
-            <h1 className="text-3xl font-black text-gray-900 mb-2">HireAI Session</h1>
-            <p className="text-gray-500 font-medium mb-8">Role: {interviewInfo?.job?.title || 'Assessment'}</p>
-            <Button onClick={() => setIsJoined(true)} className="w-full py-4 text-lg rounded-2xl">Join Room</Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Skip resume upload screen if user already has resume in profile
-  // This section is now optional and will auto-skip if profile resume exists
+  // 3. Resume Check
   if (!isResumeSubmitted && !user?.resumeUrl) {
     return (
       <div className="min-h-screen bg-[#F8F9FA] flex flex-col items-center justify-center p-8">
         <Card className="max-w-lg w-full p-12 text-center shadow-2xl border-none rounded-[3rem]">
           <h2 className="text-3xl font-black mb-2 text-gray-900">Resume Required</h2>
-          <p className="text-sm text-gray-500 mb-10 font-medium">Please add a resume URL to your profile before starting an interview.</p>
-
-          <Button
-            onClick={() => router.push('/profile')}
-            className="w-full py-4 text-lg rounded-2xl"
-          >
-            Go to Profile
-          </Button>
+          <p className="text-sm text-gray-500 mb-10 font-medium">Please add a resume to your profile before starting.</p>
+          <Button onClick={() => router.push('/profile')} className="w-full py-4 text-lg rounded-2xl">Go to Profile</Button>
         </Card>
       </div>
     );
   }
 
+  // 3b. Expired state
+  // Don't show expired if interview has started or if there's still time left
+  // This matches backend logic: don't expire if session is ongoing
+  const actuallyExpired = isExpired && !interviewStarted && !sessionId;
+  
+  if (actuallyExpired) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-8">
+        <div className="max-w-md w-full bg-white rounded-[2.5rem] shadow-2xl p-10 text-center border border-gray-100">
+          <div className="w-20 h-20 bg-red-100 text-red-600 rounded-3xl flex items-center justify-center mx-auto mb-6">
+            <ShieldAlert className="w-10 h-10" />
+          </div>
+          <h2 className="text-2xl font-black text-gray-900 mb-2 uppercase tracking-tight">Window Closed</h2>
+          <p className="text-gray-500 font-medium mb-8 text-sm">This interview session has expired or the window has closed. Please contact your recruiter.</p>
+          <Button onClick={() => router.push('/dashboard')} className="w-full py-4 rounded-xl font-bold uppercase tracking-widest bg-gray-900 hover:bg-black text-white">
+            Return to Dashboard
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // 4. Security Onboarding (Interactive Check)
   if (isResumeSubmitted && !interviewStarted && chat.length === 0) {
+    const settings = interviewInfo?.job;
+    const isFsRequired = settings?.fullScreenMode;
+    const isSsRequired = settings?.screenRecording;
+    const allVerified = (!isFsRequired || securityStatus.fullscreen) && (!isSsRequired || securityStatus.screenShare) && securityStatus.camera && securityStatus.mic;
+
     return (
       <div className="min-h-screen bg-[#F8F9FA] flex flex-col items-center justify-center p-8">
-        <Card className="max-w-xl w-full p-12 shadow-2xl border-none rounded-[3rem]">
-          <h2 className="text-2xl font-black text-gray-900 mb-6">Profile Details</h2>
-          <div className="bg-gray-50 p-6 rounded-2xl mb-8 border border-gray-100 italic text-sm text-gray-600">
-            &quot;{resumeSnippet}&quot;
+        <Card className="max-w-2xl w-full p-12 shadow-2xl border-none rounded-[3rem]">
+          <div className="flex justify-between items-start mb-8">
+            <div>
+              <h2 className="text-3xl font-black text-gray-900 mb-2">Setup Required</h2>
+              <p className="text-sm font-medium text-gray-500">Security verification is mandatory for this assessment.</p>
+            </div>
+            <div className={`p-4 rounded-3xl ${allVerified ? 'bg-green-50 text-green-600' : 'bg-amber-50 text-amber-600'}`}>
+              <ShieldAlert className="w-8 h-8" />
+            </div>
           </div>
+
+          <div className="space-y-4 mb-10">
+            {isFsRequired && (
+              <div className="flex items-center justify-between p-5 bg-gray-50 rounded-2xl border border-gray-100">
+                <div className="flex items-center space-x-4">
+                  <div className={`p-3 rounded-xl ${securityStatus.fullscreen ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}`}><Layout className="w-5 h-5" /></div>
+                  <div>
+                    <h4 className="font-black text-gray-900 leading-none mb-1 uppercase tracking-tight">Full Screen Mode</h4>
+                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">No tabs or address bar visible</p>
+                  </div>
+                </div>
+                {!securityStatus.fullscreen ? (
+                  <Button variant="secondary" onClick={verifyFullscreen} className="text-[10px] px-4 py-2 font-black uppercase tracking-widest rounded-xl">Enable</Button>
+                ) : (
+                  <div className="flex items-center space-x-2 text-green-600 font-black text-[10px] uppercase">
+                    <span>Active</span>
+                    <CheckCircle2 className="w-5 h-5" />
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="flex items-center justify-between p-5 bg-gray-50 rounded-2xl border border-gray-100">
+              <div className="flex items-center space-x-4">
+                <div className={`p-3 rounded-xl ${securityStatus.camera ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}`}><Camera className="w-5 h-5" /></div>
+                <div>
+                  <h4 className="font-black text-gray-900 leading-none mb-1 uppercase tracking-tight">Camera Access</h4>
+                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Face & eye tracking</p>
+                </div>
+              </div>
+              {!securityStatus.camera ? <Button variant="secondary" onClick={verifyCamera} className="text-[10px] px-4 py-2 font-black uppercase tracking-widest rounded-xl">Verify</Button> : <CheckCircle2 className="w-6 h-6 text-green-500" />}
+            </div>
+
+            <div className="flex items-center justify-between p-5 bg-gray-50 rounded-2xl border border-gray-100">
+              <div className="flex items-center space-x-4">
+                <div className={`p-3 rounded-xl ${securityStatus.mic ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}`}><Mic className="w-5 h-5" /></div>
+                <div>
+                  <h4 className="font-black text-gray-900 leading-none mb-1 uppercase tracking-tight">Microphone</h4>
+                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Audio input check</p>
+                </div>
+              </div>
+              {!securityStatus.mic ? <Button variant="secondary" onClick={verifyMic} className="text-[10px] px-4 py-2 font-black uppercase tracking-widest rounded-xl">Verify</Button> : <CheckCircle2 className="w-6 h-6 text-green-500" />}
+            </div>
+
+            {isSsRequired && (
+              <div className="flex items-center justify-between p-5 bg-gray-50 rounded-2xl border border-gray-100">
+                <div className="flex items-center space-x-4">
+                  <div className={`p-3 rounded-xl ${securityStatus.screenShare ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}`}><Monitor className="w-5 h-5" /></div>
+                  <div>
+                    <h4 className="font-black text-gray-900 leading-none mb-1 uppercase tracking-tight">Screen Recording</h4>
+                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Detects tab switching</p>
+                  </div>
+                </div>
+                {!securityStatus.screenShare ? <Button variant="secondary" onClick={verifyScreenShare} className="text-[10px] px-4 py-2 font-black uppercase tracking-widest rounded-xl">Enable</Button> : <CheckCircle2 className="w-6 h-6 text-green-500" />}
+              </div>
+            )}
+          </div>
+
           <LoadingButton
             onClick={handleStart}
-            disabled={isWaiting || isExpired}
+            disabled={!allVerified || isWaiting || isExpired}
             loading={startInterviewMutation.isPending}
-            className="w-full py-4 rounded-2xl shadow-xl shadow-blue-500/20 text-lg font-black uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full py-5 rounded-2xl shadow-xl shadow-blue-500/20 text-lg font-black uppercase tracking-widest bg-blue-600 hover:bg-blue-700 text-white transition-all active:scale-95 disabled:grayscale disabled:opacity-50"
           >
-            {isExpired ? 'Interview Window Expired' : isWaiting ? `Starts in ${formatWaitTime(timeToWait)}` : 'Begin AI Assessment'}
+            Launch Secure Session
           </LoadingButton>
+          <div className="mt-8 p-4 bg-amber-50 rounded-xl border border-amber-100">
+            <p className="text-[10px] text-amber-700 font-medium leading-relaxed italic text-center">
+              * Note: Browser F11 mode is not sufficient. Please use the "Enable" buttons above to grant specific system-level permissions.
+            </p>
+          </div>
         </Card>
       </div>
     );
   }
 
+
+  // 5. Main Interview Room
   return (
     <div className="h-screen bg-meet flex flex-col text-white overflow-hidden font-inter relative">
       {(isPaused || isFlagged) && (
-        <div className="absolute inset-0 z-[100] bg-black/90 backdrop-blur-xl flex flex-col items-center justify-center p-8 text-center transition-all animate-in fade-in duration-500">
-          <div className={cn(
-            "w-24 h-24 rounded-[2rem] flex items-center justify-center mb-8 animate-pulse border-2",
-            isFlagged ? "bg-red-500/20 text-red-500 border-red-500/30" : "bg-orange-500/20 text-orange-500 border-orange-500/30"
-          )}>
+        <div className="absolute inset-0 z-[100] bg-black/95 backdrop-blur-3xl flex flex-col items-center justify-center p-8 text-center transition-all animate-in fade-in duration-500">
+          <div className={cn("w-24 h-24 rounded-[2rem] flex items-center justify-center mb-8 animate-pulse border-2 shadow-2xl", isFlagged ? "bg-red-500/20 text-red-500 border-red-500/30 shadow-red-500/20" : "bg-blue-500/20 text-blue-500 border-blue-500/30 shadow-blue-500/20")}>
             {isFlagged ? (
               <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
             ) : (
               <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
             )}
           </div>
-
-          <h2 className="text-4xl font-black mb-4 uppercase tracking-tighter">
-            {isFlagged ? "Interview Terminated" : "Security Warning"}
-          </h2>
-
-          <p className="text-gray-400 max-w-md font-medium mb-10 leading-relaxed text-lg">
-            {isFlagged
-              ? "Multiple integrity violations have been recorded. This session is now closed for manual review by the hiring team."
-              : `Security interruption detected. This is warning ${warningCount}/3. Further violations will result in immediate termination.`
-            }
+          <h2 className="text-5xl font-black mb-6 uppercase tracking-tighter text-white">{isFlagged ? "Session Paused & Flagged" : "Security Alert"}</h2>
+          <p className="text-gray-300 max-w-2xl font-semibold mb-12 leading-relaxed text-xl">
+            {isFlagged ? (
+              "This session has been flagged for manual review due to persistent violations."
+            ) : (
+              error || `Security interruption (Warning ${warningCount}/3). Please restore secure environment.`
+            )}
           </p>
-
           {!isFlagged && (
-            <div className="flex flex-col items-center space-y-6 w-full max-w-sm">
-              <div className="bg-white/5 border border-white/10 rounded-2xl p-6 w-full">
-                <p className="text-xs font-black uppercase tracking-widest text-blue-400 mb-3">Integrity Instruction</p>
-                <p className="text-sm text-gray-300 leading-relaxed font-medium">Please ensure you are in full-screen mode, alone, and not switching tabs. Click below to acknowledge and resume.</p>
-              </div>
-
-              <Button
-                onClick={acknowledgeWarning}
-                className="w-full py-5 text-lg rounded-2xl bg-orange-500 hover:bg-orange-600 shadow-xl shadow-orange-500/20 font-black uppercase tracking-widest"
-              >
-                I Acknowledge & Resume
-              </Button>
-            </div>
+            <Button onClick={async () => {
+              if (interviewInfo?.job?.fullScreenMode && !document.fullscreenElement) {
+                try { await document.documentElement.requestFullscreen(); } catch (err) { toast.error("Full screen required."); return; }
+              }
+              acknowledgeWarning();
+            }} className="px-12 py-6 text-xl rounded-[2rem] bg-blue-600 font-black uppercase tracking-widest">Resume Interview</Button>
           )}
-
-          {isFlagged && (
-            <Button
-              onClick={() => router.push('/dashboard')}
-              className="px-12 py-4 rounded-2xl border border-white/10 text-gray-400 hover:bg-white/5 transition-all font-bold uppercase tracking-widest"
-            >
-              Return to Dashboard
-            </Button>
-          )}
-
-          <p className="mt-12 text-[10px] font-black uppercase tracking-widest text-gray-500">
-            {isFlagged ? "Audit Report Generated" : "Warning Logged"} &bull; SESSION ID: {sessionId || 'DEMO'}
-          </p>
+          {isFlagged && <Button onClick={() => router.push('/dashboard')} className="px-12 py-4 rounded-2xl border border-white/10 text-gray-400 font-bold uppercase tracking-widest">Dashboard</Button>}
         </div>
       )}
 
-
       <div className="h-16 flex items-center justify-between px-8 bg-black/40 border-b border-white/5 backdrop-blur-xl z-20">
         <div className="flex items-center space-x-3">
-          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center font-bold">H</div>
+          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-xs">AI</div>
           <div className="flex flex-col">
-            <span className="font-black text-[10px] uppercase tracking-widest leading-none">HireAI Live Assessment</span>
-            <span className="text-[10px] font-bold text-blue-400 tracking-tighter mt-1 truncate max-w-[200px]">{interviewInfo?.job?.title} &bull; {interviewInfo?.job?.companyName}</span>
+            <span className="font-black text-[10px] uppercase tracking-widest leading-none">HireAI Live</span>
+            <span className="text-[10px] font-bold text-blue-400 mt-1 truncate max-w-[200px]">{interviewInfo?.job?.title}</span>
           </div>
         </div>
-        <div className="flex items-center space-x-3">
-          {isAnalyzing ? (
-            <div className="flex items-center space-x-2 bg-blue-500/20 px-3 py-1 rounded-full border border-blue-500/30">
-              <div className="w-2 h-2 rounded-full bg-blue-400 animate-bounce"></div>
-              <span className="text-[10px] font-black uppercase tracking-widest text-blue-400">AI Analyzing Response...</span>
-            </div>
-          ) : (
-            <>
-              <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
-              <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">AI Proctoring Active</span>
-            </>
-          )}
+        <div className="flex items-center space-x-6">
           {timeLeft !== null && (
-            <>
-              <div className="h-4 w-[1px] bg-white/10 mx-2"></div>
-              <span className={cn(
-                "text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded",
-                timeLeft < 60 ? "bg-red-500 text-white" : "text-blue-400"
-              )}>
-                Time Left: {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
-              </span>
-            </>
+            <span className={cn("text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded", timeLeft < 60 ? "bg-red-500 text-white" : "text-blue-400")}>
+              Time: {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
+            </span>
           )}
         </div>
       </div>
 
       <div className="flex-grow flex p-6 space-x-6 overflow-hidden">
-        <VideoFeed
-          isCamOn={isCamOn}
-          isMicOn={isMicOn && !isAITalking && !isAnalyzing}
-          userName={user?.name || 'Candidate'}
-          isAITalking={isAITalking}
-          isListening={isListening}
-        />
+        <VideoFeed ref={videoRef} isCamOn={isCamOn} isMicOn={isMicOn && !isAITalking && !isAnalyzing} userName={user?.name || 'Candidate'} isAITalking={isAITalking} isListening={isListening} proctoringMetrics={proctoringMetrics} />
         <div className="w-[450px] flex flex-col h-full">
           <TranscriptSidebar
             chat={chat}
@@ -585,7 +825,7 @@ export default function InterviewPage() {
         interviewStarted={interviewStarted}
         onStart={handleStart}
         currentStep={currentStep}
-        totalSteps={questions.length}
+        totalSteps={targetQuestionCount}
       />
     </div>
   );

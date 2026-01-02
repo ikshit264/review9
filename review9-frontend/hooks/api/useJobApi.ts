@@ -9,7 +9,7 @@ export const useJobApi = (jobId?: string) => {
     const queryClient = useQueryClient();
     const { user } = useStore();
 
-    // Fetch a single job by ID
+    // Fetch only job metadata (lightweight)
     const useJobQuery = () => {
         return useQuery({
             queryKey: ['job', jobId],
@@ -19,39 +19,26 @@ export const useJobApi = (jobId?: string) => {
                 try {
                     const backendJob = await jobsApi.getById(jobId);
 
-                    // Transform to frontend format
                     const job: JobPosting = {
                         id: backendJob.id,
                         title: backendJob.title,
-                        role: backendJob.roleCategory,
+                        roleCategory: backendJob.roleCategory,
                         description: backendJob.description,
                         companyName: user?.name || 'Company',
                         companyId: user?.id || '',
-                        date: backendJob.scheduledTime,
-                        candidates: backendJob.candidates.map((c: any) => ({
-                            id: c.id,
-                            name: c.name,
-                            email: c.email,
-                            interviewTime: '',
-                            status: c.status,
-                            resumeText: c.resumeText,
-                            sessionId: c.sessionId,
-                            score: c.score,
-                        })),
+                        interviewStartTime: backendJob.interviewStartTime || backendJob.scheduledTime,
+                        interviewEndTime: backendJob.interviewEndTime,
+                        timezone: backendJob.timezone || 'UTC',
                         planAtCreation: backendJob.planAtCreation as SubscriptionPlan,
-                        proctoringSettings: {
-                            tabTracking: backendJob.tabTracking,
-                            eyeTracking: backendJob.eyeTracking,
-                            multiFaceDetection: backendJob.multiFaceDetection,
-                            screenRecording: backendJob.screenRecording,
-                        },
-                        // Include new fields
                         tabTracking: backendJob.tabTracking,
                         eyeTracking: backendJob.eyeTracking,
-                        multiFaceDetection: backendJob.multiFaceDetection,
-                        screenRecording: backendJob.screenRecording,
-                        fullScreenMode: backendJob.fullScreenMode,
+                        multiFaceDetection: backendJob.multiFaceDetection ?? false,
+                        screenRecording: backendJob.screenRecording ?? false,
+                        fullScreenMode: backendJob.fullScreenMode ?? false,
                         noTextTyping: backendJob.noTextTyping,
+                        videoRequired: backendJob.videoRequired || false,
+                        micRequired: backendJob.micRequired || false,
+                        candidates: [], // Candidates fetched separately
                     };
 
                     return job;
@@ -62,6 +49,19 @@ export const useJobApi = (jobId?: string) => {
             },
             enabled: !!jobId,
             staleTime: 30000,
+        });
+    };
+
+    // Fetch candidates separately
+    const useJobCandidatesQuery = () => {
+        return useQuery({
+            queryKey: ['job-candidates', jobId],
+            queryFn: async () => {
+                if (!jobId) return [];
+                return jobsApi.getCandidates(jobId);
+            },
+            enabled: !!jobId,
+            staleTime: 10000,
         });
     };
 
@@ -77,6 +77,7 @@ export const useJobApi = (jobId?: string) => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['job', jobId] });
+            queryClient.invalidateQueries({ queryKey: ['job-candidates', jobId] });
             queryClient.invalidateQueries({ queryKey: ['jobs'] });
         },
     });
@@ -95,6 +96,7 @@ export const useJobApi = (jobId?: string) => {
 
     return {
         useJobQuery,
+        useJobCandidatesQuery,
         useJobAnalytics,
         inviteCandidatesMutation,
     };

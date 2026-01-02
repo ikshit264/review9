@@ -18,23 +18,24 @@ export default function ProfileGuard({ children }: { children: React.ReactNode }
         // Don't redirect while loading (unless we have a user in store)
         if (isLoadingProfile && !storeUser) return;
 
-        const authPaths = ['/login', '/register'];
-        const isAuthPage = authPaths.includes(pathname);
+        const publicPaths = ['/login', '/register', '/interview/test-me', '/interview/test-me-free', '/interview/test-me-pro', '/interview/test-me-ultra'];
+        const isPublicPage = publicPaths.some(path => pathname.startsWith(path));
 
-        // Redirect to login if not authenticated and not on auth page
-        if (!currentUser && !isAuthPage) {
+        // Redirect to login if not authenticated and not on public page
+        if (!currentUser && !isPublicPage) {
             router.push('/login');
             return;
         }
 
-        // If authenticated and on login/register, redirect to dashboard
-        if (currentUser && isAuthPage) {
+        // If authenticated and on login/register (but not test-me), redirect to dashboard
+        const authOnlyPaths = ['/login', '/register'];
+        if (currentUser && authOnlyPaths.includes(pathname)) {
             router.push('/dashboard');
             return;
         }
 
-        // Check if profile is complete (only for authenticated users)
-        if (currentUser && !currentUser.isProfileComplete && pathname !== '/profile') {
+        // Check if profile is complete (only for authenticated users, skipping public/test pages)
+        if (currentUser && !currentUser.isProfileComplete && pathname !== '/profile' && !isPublicPage) {
             router.push('/profile?mandatory=true');
         }
     }, [currentUser, isLoadingProfile, pathname, router, storeUser]);

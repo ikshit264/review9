@@ -1,7 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
-import { env } from 'process';
 import cookieParser from 'cookie-parser';
 
 async function bootstrap() {
@@ -9,10 +8,17 @@ async function bootstrap() {
 
   app.setGlobalPrefix('api');
   app.use(cookieParser());
+
+  // Parse allowed origins from env (comma-separated) - aligned with Senior Auth Engineer request
+  const allowedOrigins = (process.env.APP_URLS || process.env.ALLOWED_ORIGINS || 'http://localhost:3000')
+    .split(',')
+    .map(origin => origin.trim());
+
   app.enableCors({
-    origin: process.env.APP_URL || 'http://localhost:3000',
+    origin: allowedOrigins,
     credentials: true,
   });
+
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -21,10 +27,9 @@ async function bootstrap() {
     }),
   );
 
-  const port = process.env.PORT || 3001;
-  await app.listen(port);
-  console.log('🔍 DEBUG: GEMINI_API_KEY =', env.NEST_GEMINI_API_KEY);
+  await app.listen(Number(process.env.PORT) || 3000, '0.0.0.0'); // 🔥 REQUIRED FOR RENDER
 
-  console.log(`🚀 HireAI Backend running on port ${port}`);
+  console.log(`🚀 HireAI Backend running on port ${Number(process.env.PORT) || 3000}`);
 }
+
 bootstrap();

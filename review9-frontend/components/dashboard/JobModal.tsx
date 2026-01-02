@@ -18,6 +18,9 @@ interface JobModalProps {
     interviewEndTime: string;
     timezone: string;
     notes?: string;
+    tabTracking?: boolean;
+    eyeTracking?: boolean;
+    multiFaceDetection?: boolean;
     fullScreenMode?: boolean;
     noTextTyping?: boolean;
     customQuestions?: string[];
@@ -48,6 +51,9 @@ export const JobModal: React.FC<JobModalProps> = ({
 }) => {
   const [candidateEmails, setCandidateEmails] = useState('');
   const [timeError, setTimeError] = useState('');
+  const [tabTracking, setTabTracking] = useState(true);
+  const [eyeTracking, setEyeTracking] = useState(false);
+  const [multiFaceDetection, setMultiFaceDetection] = useState(false);
   const [fullScreenMode, setFullScreenMode] = useState(false);
   const [noTextTyping, setNoTextTyping] = useState(false);
   const [customQuestions, setCustomQuestions] = useState<string[]>(['']);
@@ -107,6 +113,9 @@ export const JobModal: React.FC<JobModalProps> = ({
       interviewEndTime: localToUTC(endTime),
       timezone: timezone,
       notes: formData.get('notes') as string,
+      tabTracking,
+      eyeTracking,
+      multiFaceDetection,
       fullScreenMode,
       noTextTyping,
       customQuestions: filteredQuestions.length > 0 ? filteredQuestions : undefined,
@@ -180,8 +189,42 @@ export const JobModal: React.FC<JobModalProps> = ({
           ></textarea>
         </div>
 
-        <div className="flex items-center space-x-6 py-2">
-          <label className="flex items-center space-x-2 cursor-pointer">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 py-2 border-t border-gray-100 mt-4">
+          <label className="flex items-center space-x-2 cursor-pointer group">
+            <input
+              type="checkbox"
+              checked={tabTracking}
+              onChange={(e) => setTabTracking(e.target.checked)}
+              disabled={isInviting}
+              className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+            />
+            <span className="text-[10px] font-black text-gray-700 uppercase tracking-tighter group-hover:text-blue-600 transition-colors">🌐 Tab Tracking</span>
+          </label>
+          {plan !== SubscriptionPlan.FREE && (
+            <label className="flex items-center space-x-2 cursor-pointer group">
+              <input
+                type="checkbox"
+                checked={eyeTracking}
+                onChange={(e) => setEyeTracking(e.target.checked)}
+                disabled={isInviting}
+                className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+              />
+              <span className="text-[10px] font-black text-gray-700 uppercase tracking-tighter group-hover:text-blue-600 transition-colors">👁️ Eye Tracking</span>
+            </label>
+          )}
+          {plan === SubscriptionPlan.ULTRA && (
+            <label className="flex items-center space-x-2 cursor-pointer group">
+              <input
+                type="checkbox"
+                checked={multiFaceDetection}
+                onChange={(e) => setMultiFaceDetection(e.target.checked)}
+                disabled={isInviting}
+                className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+              />
+              <span className="text-[10px] font-black text-gray-700 uppercase tracking-tighter group-hover:text-blue-600 transition-colors">👥 Multi-Face</span>
+            </label>
+          )}
+          <label className="flex items-center space-x-2 cursor-pointer group">
             <input
               type="checkbox"
               checked={fullScreenMode}
@@ -189,9 +232,9 @@ export const JobModal: React.FC<JobModalProps> = ({
               disabled={isInviting}
               className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
             />
-            <span className="text-sm font-bold text-gray-700 uppercase tracking-tighter">🔒 Full Screen</span>
+            <span className="text-[10px] font-black text-gray-700 uppercase tracking-tighter group-hover:text-blue-600 transition-colors">🔒 Full Screen</span>
           </label>
-          <label className="flex items-center space-x-2 cursor-pointer">
+          <label className="flex items-center space-x-2 cursor-pointer group">
             <input
               type="checkbox"
               checked={noTextTyping}
@@ -199,7 +242,7 @@ export const JobModal: React.FC<JobModalProps> = ({
               disabled={isInviting}
               className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
             />
-            <span className="text-sm font-bold text-gray-700 uppercase tracking-tighter">🎙️ Verbal Only</span>
+            <span className="text-[10px] font-black text-gray-700 uppercase tracking-tighter group-hover:text-blue-600 transition-colors">🎙️ Verbal Only</span>
           </label>
         </div>
 

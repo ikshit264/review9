@@ -12,23 +12,31 @@ export default function JobAnalytics() {
   const params = useParams();
   const jobId = params.jobId as string;
   const companyName = params.companyName as string;
-  const { jobs: storeJobs, user } = useStore();
+  const { user } = useStore();
   const { useJobQuery, useJobAnalytics } = useJobApi(jobId);
   const { data: backendJob, isLoading: jobLoading } = useJobQuery();
   const { data: analytics, isLoading: analyticsLoading } = useJobAnalytics();
 
-  const storeJob = storeJobs.find(j => j.id === jobId);
-  const job = backendJob || storeJob || {
+  const job = backendJob || {
     id: jobId,
     title: 'Job Details',
-    role: 'Role',
+    roleCategory: 'Role',
     description: '',
     companyName: user?.name || 'Company',
     companyId: user?.id || '',
-    date: new Date().toISOString(),
-    candidates: [],
+    interviewStartTime: new Date().toISOString(),
+    interviewEndTime: new Date().toISOString(),
     planAtCreation: SubscriptionPlan.FREE,
-    proctoringSettings: { tabTracking: true, eyeTracking: false, multiFaceDetection: false, screenRecording: false }
+    tabTracking: true,
+    eyeTracking: false,
+    multiFaceDetection: false,
+    screenRecording: false,
+    fullScreenMode: false,
+    videoRequired: false,
+    micRequired: false,
+    noTextTyping: false,
+    timezone: 'UTC',
+    candidates: []
   };
 
   const isLoading = jobLoading || analyticsLoading;
@@ -57,7 +65,7 @@ export default function JobAnalytics() {
   ];
 
   return (
-    <JobDetailLayout jobTitle={job.title} companyName={companyName || job.companyName}>
+    <JobDetailLayout jobTitle={job.title} companyName={companyName || job.companyName || 'Company'}>
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         {stats.map(s => (

@@ -6,7 +6,7 @@ import { JobPosting, SubscriptionPlan } from '@/types';
 import { jobsApi } from '@/services/api';
 
 export const useDashboardPageApi = () => {
-  const { addJob, user } = useStore();
+  const { user } = useStore();
   const queryClient = useQueryClient();
 
   const createJobMutation = useMutation({
@@ -22,6 +22,8 @@ export const useDashboardPageApi = () => {
       eyeTracking?: boolean;
       multiFaceDetection?: boolean;
       screenRecording?: boolean;
+      fullScreenMode?: boolean;
+      noTextTyping?: boolean;
     }) => {
       const response = await jobsApi.create(data);
 
@@ -29,22 +31,25 @@ export const useDashboardPageApi = () => {
       const newJob: JobPosting = {
         id: response.id,
         title: response.title,
-        role: response.roleCategory,
+        roleCategory: response.roleCategory,
         description: response.description,
         companyName: user?.name || 'Company',
         companyId: response.companyId,
-        date: response.interviewStartTime, // Use start time for display
+        interviewStartTime: response.interviewStartTime,
+        interviewEndTime: response.interviewEndTime,
+        timezone: response.timezone,
         candidates: [],
         planAtCreation: response.planAtCreation as SubscriptionPlan,
-        proctoringSettings: {
-          tabTracking: data.tabTracking || true,
-          eyeTracking: data.eyeTracking || false,
-          multiFaceDetection: data.multiFaceDetection || false,
-          screenRecording: data.screenRecording || false,
-        },
+        tabTracking: data.tabTracking ?? true,
+        eyeTracking: data.eyeTracking ?? false,
+        multiFaceDetection: data.multiFaceDetection ?? false,
+        screenRecording: data.screenRecording ?? false,
+        fullScreenMode: data.fullScreenMode ?? false,
+        noTextTyping: data.noTextTyping ?? false,
+        videoRequired: false,
+        micRequired: false,
       };
 
-      addJob(newJob);
       return newJob;
     },
     onSuccess: () => {
@@ -53,8 +58,6 @@ export const useDashboardPageApi = () => {
   });
 
   const useJobsQuery = () => {
-    const { jobs: storeJobs } = useStore();
-
     return useQuery({
       queryKey: ['jobs'],
       queryFn: async () => {
@@ -65,29 +68,29 @@ export const useDashboardPageApi = () => {
           return backendJobs.map((job) => ({
             id: job.id,
             title: job.title,
-            role: job.roleCategory,
+            roleCategory: job.roleCategory,
             description: job.description,
             companyName: user?.name || 'Company',
             companyId: user?.id || '',
-            date: job.scheduledTime,
-            candidates: job.candidates.map((c: any) => ({
-              id: c.id,
-              name: c.name,
-              email: c.email,
-              interviewTime: '',
-              status: c.status,
-            })),
+            interviewStartTime: job.interviewStartTime || job.scheduledTime,
+            interviewEndTime: job.interviewEndTime,
+            timezone: job.timezone || 'UTC',
+            candidates: [],
+            candidateCount: job.candidateCount || job.candidates?.length || 0,
+            sessionCount: job.sessionCount || 0,
             planAtCreation: job.planAtCreation as SubscriptionPlan,
-            proctoringSettings: {
-              tabTracking: true,
-              eyeTracking: false,
-              multiFaceDetection: false,
-              screenRecording: false,
-            },
+            tabTracking: job.tabTracking ?? true,
+            eyeTracking: job.eyeTracking ?? false,
+            multiFaceDetection: job.multiFaceDetection ?? false,
+            screenRecording: job.screenRecording ?? false,
+            fullScreenMode: job.fullScreenMode ?? false,
+            noTextTyping: job.noTextTyping ?? false,
+            videoRequired: job.videoRequired ?? false,
+            micRequired: job.micRequired ?? false,
           })) as JobPosting[];
         } catch (error) {
-          console.error('Failed to fetch jobs from backend, using store:', error);
-          return storeJobs;
+          console.error('Failed to fetch jobs from backend:', error);
+          return [];
         }
       },
       enabled: user?.role === 'COMPANY', // Only fetch for company users

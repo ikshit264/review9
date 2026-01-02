@@ -4,13 +4,32 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useStore } from '@/store/useStore';
 import { useAuth } from '@/hooks/api/useAuth';
-import { Button, Card } from '@/components/UI';
-import { UserRole, SubscriptionPlan, ProctoringSettings } from '@/types';
+import { UserRole, SubscriptionPlan } from '@/types';
 import { JobCard } from '@/components/dashboard/JobCard';
 import { JobModal } from '@/components/dashboard/JobModal';
 import { NotificationDropdown } from '@/components/dashboard/NotificationDropdown';
 import { useDashboardPageApi } from '@/hooks/api/useDashboardPageApi';
 import { useToast } from '@/hooks/useToast';
+import { Sidebar } from '@/components/dashboard/Sidebar';
+import { LoadingOverlay } from '@/components/LoadingOverlay';
+import { cn } from '@/lib/utils';
+
+import {
+  Briefcase,
+  Plus,
+  User as UserIcon,
+  Monitor,
+  Calendar,
+  ChevronRight,
+  BrainCircuit,
+  TrendingUp,
+  Copy,
+  Check,
+  Clock,
+  CheckCircle2,
+  AlertCircle,
+  FileSearch
+} from 'lucide-react';
 
 export default function Dashboard() {
   const { user } = useStore();
@@ -18,30 +37,23 @@ export default function Dashboard() {
   const router = useRouter();
   const toast = useToast();
   const [isJobModalOpen, setIsJobModalOpen] = useState(false);
-  const { createJobMutation, useJobsQuery, inviteCandidatesMutation } = useDashboardPageApi();
+  const { createJobMutation, useJobsQuery } = useDashboardPageApi();
   const { data: jobs = [], isLoading: jobsLoading } = useJobsQuery();
   const [invitations, setInvitations] = useState<any[]>([]);
   const [invitesLoading, setInvitesLoading] = useState(false);
 
-  // Polling state
+  // Polling state for invitations
   const [isInviting, setIsInviting] = useState(false);
   const [invitationProgress, setInvitationProgress] = useState<{
     total: number;
     current: number;
     succeeded: number;
     failed: number;
-    details: Array<{
-      email: string;
-      status: 'pending' | 'sending' | 'success' | 'error';
-      error?: string;
-    }>;
-  }>({
-    total: 0,
-    current: 0,
-    succeeded: 0,
-    failed: 0,
-    details: []
-  });
+    details: any[];
+  }>({ total: 0, current: 0, succeeded: 0, failed: 0, details: [] });
+
+  // Job creation state (must be declared before any early returns)
+  const [isCreatingJob, setIsCreatingJob] = useState(false);
 
   useEffect(() => {
     if (user?.role === UserRole.CANDIDATE) {
@@ -60,349 +72,288 @@ export default function Dashboard() {
     }
   }, [user]);
 
-  const isLoading = jobsLoading || invitesLoading;
-
-  const getDefaultSettings = (plan: SubscriptionPlan): ProctoringSettings => ({
-    tabTracking: true,
-    eyeTracking: plan !== SubscriptionPlan.FREE,
-    multiFaceDetection: plan === SubscriptionPlan.ULTRA,
-    screenRecording: plan !== SubscriptionPlan.FREE,
-    fullScreenMode: false,
-    noTextTyping: false,
-  });
-
-  const handleCreateJob = async (data: {
-    title: string;
-    role: string;
-    emails: string[];
-    interviewStartTime: string;
-    interviewEndTime: string;
-    timezone: string;
-    notes?: string;
-    fullScreenMode?: boolean;
-    noTextTyping?: boolean;
-    customQuestions?: string[];
-    aiSpecificRequirements?: string;
-  }) => {
-    const currentPlan = user?.plan || SubscriptionPlan.FREE;
-    const settings = getDefaultSettings(currentPlan);
-
-    const jobData = {
-      title: data.title,
-      roleCategory: data.role,
-      description: data.notes || 'No description provided.',
-      notes: data.notes,
-      interviewStartTime: data.interviewStartTime,
-      interviewEndTime: data.interviewEndTime,
-      timezone: data.timezone,
-      tabTracking: settings.tabTracking,
-      eyeTracking: settings.eyeTracking,
-      multiFaceDetection: settings.multiFaceDetection,
-      screenRecording: settings.screenRecording,
-      fullScreenMode: data.fullScreenMode ?? false,
-      noTextTyping: data.noTextTyping ?? false,
-      customQuestions: data.customQuestions,
-      aiSpecificRequirements: data.aiSpecificRequirements,
-    };
-
-    try {
-      // Step 1: Create job
-      const newJob = await createJobMutation.mutateAsync(jobData);
-      toast.success("Job posted successfully!");
-
-      // Step 2: If no emails, close and done
-      if (data.emails.length === 0) {
-        setIsJobModalOpen(false);
-        return;
-      }
-
-      // Step 3: Set up polling
-      setIsInviting(true);
-      setInvitationProgress({
-        total: data.emails.length,
-        current: 0,
-        succeeded: 0,
-        failed: 0,
-        details: data.emails.map(email => ({ email, status: 'pending' }))
-      });
-
-      // Step 4: Add beforeunload protection
-      const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-        e.preventDefault();
-        e.returnValue = 'Invitations are being sent. Are you sure you want to leave?';
-        return e.returnValue;
-      };
-      window.addEventListener('beforeunload', handleBeforeUnload);
-
-      // Step 5: Start invitation process on backend
-      const { jobsApi } = await import('@/services/api');
-      await jobsApi.inviteCandidates(newJob.id, {
-        candidates: data.emails.map(email => ({
-          name: email.split('@')[0],
-          email
-        }))
-      });
-
-      // Step 6: Poll for progress
-      let pollCount = 0;
-      const maxPolls = 600; // 5 minutes max (600 * 500ms)
-
-      const pollInterval = setInterval(async () => {
-        try {
-          pollCount++;
-          const progress = await jobsApi.getInvitationProgress(newJob.id);
-
-          if (progress.found && progress.details) {
-            // Update progress state
-            setInvitationProgress({
-              total: progress.total || 0,
-              current: progress.current || 0,
-              succeeded: progress.succeeded || 0,
-              failed: progress.failed || 0,
-              details: progress.details
-            });
-
-            // Show individual toasts for status changes
-            progress.details.forEach((detail, idx) => {
-              const prevDetail = invitationProgress.details[idx];
-              if (prevDetail && prevDetail.status !== detail.status) {
-                if (detail.status === 'success') {
-                  toast.success(`✓ Invited ${detail.email}`);
-                } else if (detail.status === 'error') {
-                  toast.error(`✗ Failed: ${detail.email}`);
-                }
-              }
-            });
-
-            // If completed, stop polling
-            if (progress.completed) {
-              clearInterval(pollInterval);
-              window.removeEventListener('beforeunload', handleBeforeUnload);
-              setIsInviting(false);
-              toast.success(`Sent ${progress.succeeded}/${progress.total} invitations`);
-              setTimeout(() => setIsJobModalOpen(false), 2000);
-            }
-          } else if (!progress.found) {
-            // Progress not found, might be completed or error
-            clearInterval(pollInterval);
-            window.removeEventListener('beforeunload', handleBeforeUnload);
-            setIsInviting(false);
-          }
-
-          // Safety timeout
-          if (pollCount >= maxPolls) {
-            clearInterval(pollInterval);
-            window.removeEventListener('beforeunload', handleBeforeUnload);
-            setIsInviting(false);
-            toast.warning('Polling timeout - some invitations may still be processing');
-          }
-        } catch (err) {
-          console.error('Failed to fetch progress:', err);
-        }
-      }, 500); // Poll every 500ms
-
-    } catch (err) {
-      console.error("Failed to create job:", err);
-      toast.error("Failed to post job. Please try again.");
-      setIsInviting(false);
-    }
-  };
-
-  const handleViewJob = (id: string, companyName: string) => {
-    router.push(`/${companyName}/${id}`);
-  };
-
-  // Redirect to login if not authenticated
   useEffect(() => {
     if (!user && typeof window !== 'undefined') {
       router.push('/login');
     }
   }, [user, router]);
 
-  if (!user) {
-    return null;
-  }
-
-  // --- Render content based on role and state ---
-  let mainContent;
-
-  if (isLoading) {
-    mainContent = (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {[1, 2, 3].map(n => <div key={n} className="h-48 bg-gray-100 animate-pulse rounded-[2rem]"></div>)}
-      </div>
-    );
-  } else if (user.role === UserRole.COMPANY) {
-    mainContent = (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {jobs.length === 0 ? (
-          <div className="col-span-full py-20 bg-gray-100 rounded-[3rem] border-4 border-dashed border-gray-200 flex flex-col items-center justify-center text-gray-400">
-            <div className="w-20 h-20 bg-white rounded-3xl flex items-center justify-center mb-6 shadow-sm">
-              <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
-            </div>
-            <p className="text-xl font-black uppercase tracking-widest">No active jobs</p>
-            <p className="font-medium mt-2">Start by posting your first job opening.</p>
-          </div>
-        ) : (
-          jobs.map(job => (
-            <JobCard key={job.id} job={job} onViewDetails={handleViewJob} />
-          ))
-        )}
-      </div>
-    );
-  } else {
-    // Candidate view
+  // Helper for status badges
+  const renderStatusBadge = (status: string, startTime?: string, endTime?: string, isReInterviewed?: boolean) => {
     const now = new Date();
-    const getInviteTimes = (inv: any) => {
-      const start = new Date(inv.interviewStartTime || inv.job.scheduledTime || inv.job.interviewStartTime);
-      const end = new Date(inv.interviewEndTime || inv.job.interviewEndTime);
-      return { start, end };
-    };
+    const start = startTime ? new Date(startTime) : null;
+    let end = endTime ? new Date(endTime) : null;
 
-    const activeInvites = invitations.filter(inv => {
-      const { start, end } = getInviteTimes(inv);
-      const isWithinWindow = now >= start && now < end;
-      return isWithinWindow && !['COMPLETED', 'REVIEW', 'REJECTED', 'CONSIDERED'].includes(inv.currentStatus);
-    });
+    // Rule: if requested for re-interview, extend by 2 hours
+    if (isReInterviewed && end) {
+      end = new Date(end.getTime() + 2 * 60 * 60 * 1000);
+    }
 
-    const upcomingInvites = invitations.filter(inv => {
-      const { start } = getInviteTimes(inv);
-      return now < start && !['COMPLETED', 'REVIEW', 'REJECTED', 'CONSIDERED'].includes(inv.currentStatus);
-    });
+    if (status === 'COMPLETED') {
+      return (
+        <div className="flex items-center space-x-2 px-3 py-1 bg-emerald-50 rounded-full border border-emerald-100">
+          <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+          <span className="text-[9px] font-black text-emerald-600 uppercase tracking-[0.2em]">Completed</span>
+        </div>
+      );
+    }
 
-    const completedInvites = invitations.filter(inv => {
-      const { end } = getInviteTimes(inv);
-      return now >= end || ['COMPLETED', 'REVIEW', 'REJECTED', 'CONSIDERED'].includes(inv.currentStatus);
-    });
+    if (status === 'REVIEW') {
+      return (
+        <div className="flex items-center space-x-2 px-3 py-1 bg-blue-50 rounded-full border border-blue-100">
+          <FileSearch className="w-3 h-3 text-blue-500" />
+          <span className="text-[9px] font-black text-blue-600 uppercase tracking-[0.2em]">Under Review</span>
+        </div>
+      );
+    }
 
-    mainContent = (
-      <div className="space-y-12">
-        {activeInvites.length > 0 && (
-          <section>
-            <div className="flex items-center space-x-3 mb-6">
-              <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
-              <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest">Active Sessions</h2>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {activeInvites.map(inv => (
-                <Card key={inv.id} className="border-none bg-white shadow-2xl p-8 rounded-[2.5rem] relative overflow-hidden group border-l-4 border-l-blue-600">
-                  <div className="flex justify-between items-start mb-4">
-                    <span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-[10px] font-black uppercase tracking-widest">
-                      {inv.currentStatus}
-                    </span>
-                    <span className="text-[10px] font-bold text-gray-400">{inv.job.company.name}</span>
-                  </div>
-                  <h3 className="text-xl font-black text-gray-900 mb-1">{inv.job.title}</h3>
-                  <p className="text-sm text-gray-500 font-medium mb-6 line-clamp-2">{inv.job.description}</p>
-                  <Button onClick={() => router.push(`/interview/${inv.interviewLink}`)} className="w-full py-4 text-sm rounded-xl shadow-lg shadow-blue-500/20 font-black uppercase">
-                    {inv.currentStatus === 'PAUSED' ? 'View Status' : 'Resume Interview'}
-                  </Button>
-                </Card>
-              ))}
-            </div>
-          </section>
-        )}
+    if (status === 'EXPIRED' || (end && now > end)) {
+      return (
+        <div className="flex items-center space-x-2 px-3 py-1 bg-red-50 rounded-full border border-red-100">
+          <AlertCircle className="w-3 h-3 text-red-500" />
+          <span className="text-[9px] font-black text-red-600 uppercase tracking-[0.2em]">Expired</span>
+        </div>
+      );
+    }
 
-        <section>
-          <div className="flex items-center space-x-3 mb-6">
-            <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-            <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest">Upcoming Interviews</h2>
-          </div>
-          {upcomingInvites.length === 0 ? (
-            <div className="bg-gray-50 rounded-[2rem] p-12 text-center text-gray-400 font-medium">
-              No upcoming interviews scheduled yet.
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {upcomingInvites.map(inv => (
-                <Card key={inv.id} className="hover:shadow-xl transition-all cursor-pointer p-8 rounded-[2rem] border-gray-100" onClick={() => router.push(`/interview/${inv.interviewLink}`)}>
-                  <div className="flex justify-between items-center mb-4">
-                    <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center font-black text-gray-400">
-                      {inv.job.company.name[0]}
-                    </div>
-                    <div className="text-[10px] font-black text-blue-600 uppercase bg-blue-50 px-2 py-1 rounded">
-                      {new Date(inv.job.scheduledTime).toLocaleDateString()}
-                    </div>
-                  </div>
-                  <h3 className="font-black text-gray-900 leading-tight mb-1">{inv.job.title}</h3>
-                  <p className="text-xs text-gray-500 font-bold mb-4">{inv.job.company.name}</p>
-                  <div className="pt-4 border-t border-gray-50 flex items-center justify-between">
-                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Time: {new Date(inv.job.scheduledTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                    <div className="text-blue-600">
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
-                    </div>
-                  </div>
-                </Card>
-              ))}
-            </div>
-          )}
-        </section>
+    if (start && now < start) {
+      return (
+        <div className="flex items-center space-x-2 px-3 py-1 bg-amber-50 rounded-full border border-amber-100">
+          <Clock className="w-3 h-3 text-amber-500" />
+          <span className="text-[9px] font-black text-amber-600 uppercase tracking-[0.2em]">Starts Soon</span>
+        </div>
+      );
+    }
 
-        {completedInvites.length > 0 && (
-          <section>
-            <div className="flex items-center space-x-3 mb-6">
-              <div className="w-2 h-2 rounded-full bg-gray-300"></div>
-              <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest">Completed</h2>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {completedInvites.map(inv => (
-                <Card key={inv.id} className="bg-gray-50/50 border-gray-100 p-8 rounded-[2rem] grayscale opacity-80">
-                  <div className="flex justify-between items-center mb-4">
-                    <span className="px-2 py-1 bg-gray-100 text-gray-500 rounded text-[9px] font-black uppercase">COMPLETED</span>
-                    <span className="text-[10px] font-bold text-gray-400">{new Date(inv.job.scheduledTime).toLocaleDateString()}</span>
-                  </div>
-                  <h3 className="font-black text-gray-800 leading-tight mb-1">{inv.job.title}</h3>
-                  <p className="text-xs text-gray-400 font-bold">{inv.job.company.name}</p>
-                </Card>
-              ))}
-            </div>
-          </section>
-        )}
+    return (
+      <div className="flex items-center space-x-2 px-3 py-1 bg-indigo-50 rounded-full border border-indigo-100">
+        <Clock className="w-3 h-3 text-indigo-500 animate-pulse" />
+        <span className="text-[9px] font-black text-indigo-600 uppercase tracking-[0.2em]">Live Session</span>
       </div>
     );
-  }
+  };
+
+  if (!user) return null;
+
+  const isLoading = jobsLoading || invitesLoading;
+
+  const handleCreateJob = async (data: any) => {
+    setIsCreatingJob(true);
+    try {
+      const newJob = await createJobMutation.mutateAsync({
+        ...data,
+        description: data.notes || 'No description provided.',
+        roleCategory: data.role,
+      });
+      toast.success("Job posted successfully!");
+
+      if (data.emails?.length > 0) {
+        setIsInviting(true);
+        const { jobsApi } = await import('@/services/api');
+        await jobsApi.inviteCandidates(newJob.id, {
+          candidates: data.emails.map((email: string) => ({
+            name: email.split('@')[0],
+            email
+          }))
+        });
+        setIsInviting(false);
+        setIsJobModalOpen(false);
+      } else {
+        setIsJobModalOpen(false);
+      }
+    } catch (err) {
+      toast.error("Failed to post job.");
+      setIsInviting(false);
+    } finally {
+      setIsCreatingJob(false);
+    }
+  };
+
+  const dashboardStats = [
+    { label: 'Active Jobs', value: jobs.length, icon: Briefcase, color: 'text-blue-600', bg: 'bg-blue-50' },
+    { label: 'Total Applicants', value: jobs.reduce((acc, j) => acc + (j.candidateCount || 0), 0), icon: UserIcon, color: 'text-indigo-600', bg: 'bg-indigo-50' },
+    { label: 'Efficiency Gain', value: '+24%', icon: TrendingUp, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+    { label: 'AI Match Rate', value: '89%', icon: BrainCircuit, color: 'text-amber-600', bg: 'bg-amber-50' },
+  ];
+
+  const isProcessing = isCreatingJob || isInviting;
 
   return (
-    <div className="min-h-screen bg-[#F8F9FA]">
-      <header className="bg-white border-b px-8 py-4 flex justify-between items-center sticky top-0 z-20 shadow-sm">
-        <div className="flex items-center space-x-4">
-          <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold">H</div>
-            <div className="text-xl font-black text-gray-900 tracking-tight">HireAI</div>
-          </div>
-          <div className="h-6 w-[1px] bg-gray-200"></div>
-          <div className="px-3 py-1 bg-gray-100 rounded-full text-[9px] font-black text-gray-500 uppercase tracking-widest">
-            {user.role} Portal
-          </div>
-        </div>
-        <div className="flex items-center space-x-6">
-          <div className="text-right hidden sm:block">
-            <div className="text-sm font-black text-gray-900 leading-none">{user.name}</div>
-            <div className="text-[10px] text-gray-400 font-bold uppercase mt-1">{user.email}</div>
-          </div>
-          <div className="w-10 h-10 bg-blue-600 rounded-2xl flex items-center justify-center text-white font-black border-2 border-white shadow-lg">
-            {user.name?.[0]}
-          </div>
-          <NotificationDropdown />
-          <Button variant="ghost" onClick={() => { logout(); router.push('/'); }} className="text-gray-500 font-black text-xs">LOGOUT</Button>
-        </div>
-      </header>
+    <div className="min-h-screen bg-[#FDFDFE] text-slate-900 selection:bg-blue-100">
+      <LoadingOverlay
+        isLoading={isProcessing}
+        message={isCreatingJob ? 'Creating job...' : isInviting ? 'Sending invitations...' : 'Processing...'}
+      />
+      <div className="flex relative z-10">
+        <Sidebar />
+        {/* Main Content */}
+        <main className="flex-grow p-4 lg:p-12 max-w-[1600px] mx-auto w-full">
+          {/* Header Area */}
+          <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12">
+            <div className="space-y-1">
+              <div className="flex items-center space-x-3">
+                <span className="px-2 py-0.5 bg-blue-100 text-blue-600 rounded text-[9px] font-black uppercase tracking-widest">{user.role}</span>
+                <div className="w-1 h-1 bg-gray-200 rounded-full"></div>
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Workspace ID: {user.id?.slice(0, 8)}</span>
+              </div>
+              <h1 className="text-4xl lg:text-5xl font-black tracking-tight text-slate-900">
+                Welcome back, {user.name.split(' ')[0]}
+                <span className="text-blue-600">.</span>
+              </h1>
+            </div>
 
-      <main className="max-w-6xl mx-auto px-8 py-12">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12">
-          <div>
-            <h1 className="text-4xl font-black text-gray-900 tracking-tight">Active Recruitment</h1>
-            <p className="text-gray-500 mt-2 font-medium">Managing hiring for <span className="text-blue-600 font-black">{user.name}</span> &bull; Plan: <span className="font-black uppercase">{user.plan || 'Free'}</span></p>
-          </div>
-          {user.role === UserRole.COMPANY && (
-            <Button onClick={() => setIsJobModalOpen(true)} className="h-14 px-8 rounded-2xl shadow-xl shadow-blue-500/20 text-sm font-black uppercase tracking-widest">
-              + Post New Job
-            </Button>
-          )}
-        </div>
+            <div className="flex items-center gap-4">
+              <NotificationDropdown />
+              <div className="h-10 w-[1px] bg-gray-100 mx-2"></div>
+              {user.role === UserRole.COMPANY ? (
+                <button
+                  onClick={() => setIsJobModalOpen(true)}
+                  className="group flex items-center space-x-3 bg-slate-900 hover:bg-slate-800 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] shadow-xl shadow-slate-200 transition-all hover:-translate-y-0.5 active:translate-y-0"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Post New Opportunity</span>
+                </button>
+              ) : (
+                <div className="flex items-center space-x-4">
+                  <div className="text-right">
+                    <p className="text-[11px] font-black text-slate-900 uppercase tracking-widest">{user.name}</p>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Candidate</p>
+                  </div>
+                  <div className="w-12 h-12 bg-indigo-50 border border-indigo-100 rounded-2xl flex items-center justify-center text-indigo-600 font-black shadow-inner">
+                    {user.name[0]}
+                  </div>
+                </div>
+              )}
+            </div>
+          </header>
 
-        {mainContent}
-      </main>
+          {/* Content Grid */}
+          <div className="space-y-12">
+            {user.role === UserRole.COMPANY && (
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+                {dashboardStats.map((stat, i) => (
+                  <div key={i} className="p-8 rounded-[2.5rem] bg-white border border-gray-100 shadow-sm transition-all hover:shadow-md hover:border-blue-100 group">
+                    <div className={`w-12 h-12 ${stat.bg} ${stat.color} rounded-2xl flex items-center justify-center mb-6 transition-transform group-hover:scale-110`}>
+                      <stat.icon className="w-6 h-6" />
+                    </div>
+                    <div className="text-3xl font-black tracking-tighter mb-1 text-slate-900">{stat.value}</div>
+                    <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{stat.label}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Jobs / Interviews Section */}
+            <section>
+
+
+              {isLoading ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+                  {[1, 2, 3].map(n => (
+                    <div key={n} className="h-72 rounded-[2.5rem] bg-gray-50/50 animate-pulse border border-gray-100"></div>
+                  ))}
+                </div>
+              ) : user.role === UserRole.COMPANY ? (
+                jobs.length === 0 ? (
+                  <div className="relative p-24 rounded-[3rem] border-2 border-dashed border-gray-100 bg-gray-50/30 flex flex-col items-center justify-center text-center overflow-hidden">
+                    <div className="w-20 h-20 bg-white rounded-[2rem] shadow-xl flex items-center justify-center mb-8 border border-gray-50">
+                      <Plus className="w-8 h-8 text-blue-600" />
+                    </div>
+                    <h3 className="text-xl font-black uppercase tracking-widest text-slate-900 mb-2">No active pipelines</h3>
+                    <p className="text-gray-400 font-medium max-w-xs text-sm leading-relaxed">Your hiring dashboard is empty. Post your first job to start using HireAI.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+                    {jobs.map(job => (
+                      <JobCard
+                        key={job.id}
+                        job={job}
+                        onViewDetails={(id, name) => router.push(`/${name}/${id}`)}
+                      />
+                    ))}
+                  </div>
+                )
+              ) : (
+                /* Candidate View Implementation */
+                <div className="space-y-12">
+                  {invitations.length === 0 ? (
+                    <div className="p-24 rounded-[3rem] border-2 border-dashed border-gray-100 bg-gray-50/30 flex flex-col items-center justify-center text-center">
+                      <div className="w-20 h-20 bg-white rounded-[2rem] shadow-xl flex items-center justify-center mb-8 border border-gray-50">
+                        <Monitor className="w-8 h-8 text-indigo-500" />
+                      </div>
+                      <h3 className="text-xl font-black uppercase tracking-widest text-slate-900 mb-2">Dashboard Clear</h3>
+                      <p className="text-gray-400 font-medium text-sm max-w-xs">You have no pending AI assessments. New invitations will appear here.</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+                      {invitations.map(inv => (
+                        <div
+                          key={inv.id}
+                          className={cn(
+                            "group relative p-8 rounded-[2.5rem] bg-white border border-gray-100 transition-all backdrop-blur-xl",
+                            ['COMPLETED', 'REVIEW', 'REJECTED', 'CONSIDERED', 'SHORTLISTED', 'EXPIRED'].includes(inv.status)
+                              ? "bg-gray-50/80 opacity-70 cursor-not-allowed grayscale-[0.8]"
+                              : "bg-white hover:border-indigo-500/30 hover:shadow-2xl hover:shadow-indigo-500/5 cursor-pointer shadow-sm"
+                          )}
+                          onClick={() => {
+                            if (!['COMPLETED', 'REVIEW', 'REJECTED', 'CONSIDERED', 'SHORTLISTED', 'EXPIRED'].includes(inv.status)) {
+                              router.push(`/interview/${inv.interviewLink}`);
+                            }
+                          }}
+                        >
+                          <div className="flex justify-between items-start mb-6">
+                            <div className={`p-4 rounded-2xl bg-indigo-50 border border-indigo-100 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-all duration-500`}>
+                              <Monitor className="w-6 h-6" />
+                            </div>
+                            <div className="flex flex-col items-end">
+                              <span className="text-[10px] font-black text-slate-900 uppercase tracking-widest mb-1.5">{inv.job.company.name}</span>
+                              {renderStatusBadge(inv.status, inv.job.interviewStartTime || inv.job.scheduledTime, inv.job.interviewEndTime, inv.isReInterviewed)}
+                            </div>
+                          </div>
+                          <h3 className="text-2xl font-black text-slate-900 mb-2 uppercase group-hover:text-indigo-600 transition-colors tracking-tight leading-none">{inv.job.title}</h3>
+                          <p className="text-sm text-gray-400 font-medium mb-8 line-clamp-2 leading-relaxed">{inv.job.description}</p>
+
+                          <div className="pt-6 border-t border-gray-50 flex items-center justify-between">
+                            <div className="flex items-center space-x-2.5 text-gray-400">
+                              <Calendar className="w-4 h-4" />
+                              <span className="text-[11px] font-bold text-slate-600">{new Date(inv.job.interviewStartTime || inv.job.scheduledTime).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const url = `${window.location.origin}/interview/${inv.interviewLink}`;
+                                  navigator.clipboard.writeText(url);
+                                  toast.success("Interview link copied!");
+                                }}
+                                className="p-2 rounded-xl bg-gray-50 text-gray-400 hover:bg-blue-50 hover:text-blue-600 transition-all flex items-center space-x-1"
+                                title="Copy Interview Link"
+                              >
+                                <Copy className="w-3.5 h-3.5" />
+                                <span className="text-[9px] font-black uppercase tracking-widest whitespace-nowrap">Link</span>
+                              </button>
+                              <button
+                                disabled={['COMPLETED', 'REVIEW', 'REJECTED', 'CONSIDERED', 'SHORTLISTED', 'EXPIRED'].includes(inv.status)}
+                                className={cn(
+                                  "flex items-center space-x-2 text-[11px] font-black uppercase tracking-widest transition-all",
+                                  ['COMPLETED', 'REVIEW', 'REJECTED', 'CONSIDERED', 'SHORTLISTED', 'EXPIRED'].includes(inv.status) ? "text-gray-300" : "text-slate-400 group-hover:text-slate-900"
+                                )}
+                              >
+                                <span>{['COMPLETED', 'REVIEW', 'REJECTED', 'CONSIDERED', 'SHORTLISTED', 'EXPIRED'].includes(inv.status) ? 'Done' : 'Enter'}</span>
+                                <ChevronRight className={cn("w-5 h-5 transition-transform", !['COMPLETED', 'REVIEW', 'REJECTED', 'CONSIDERED', 'SHORTLISTED', 'EXPIRED'].includes(inv.status) && "group-hover:translate-x-1")} />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </section>
+          </div>
+        </main>
+      </div>
 
       <JobModal
         isOpen={isJobModalOpen}

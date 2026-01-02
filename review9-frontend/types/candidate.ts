@@ -8,7 +8,8 @@ export interface Candidate {
     resumeText?: string;
     interviewStartTime?: string;
     interviewEndTime?: string;
-    status: 'PENDING' | 'INVITED' | 'REVIEW' | 'REJECTED' | 'CONSIDERED' | 'SHORTLISTED' | 'EXPIRED' | string;
+    status: 'PENDING' | 'INVITED' | 'REVIEW' | 'COMPLETED' | 'REJECTED' | 'CONSIDERED' | 'SHORTLISTED' | 'EXPIRED' | string;
+    interviewLink: string;
     sessionId?: string;
     isReInterviewed?: boolean;
     score?: number;

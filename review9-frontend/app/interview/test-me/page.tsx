@@ -10,7 +10,7 @@ type Plan = 'FREE' | 'PRO' | 'ULTRA';
 
 export default function TestMePage() {
     const router = useRouter();
-    const { setAuth } = useStore();
+    const { setUser } = useStore();
     const [isLoading, setIsLoading] = useState(false);
     const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
 
@@ -19,17 +19,19 @@ export default function TestMePage() {
         setSelectedPlan(plan);
         try {
             const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
-            const response = await fetch(`${API_BASE_URL}/interviews/test-me?plan=${plan}`);
+            const response = await fetch(`${API_BASE_URL}/interviews/test-me?plan=${plan}`, {
+                credentials: 'include'
+            });
 
             if (!response.ok) {
                 throw new Error('Failed to create test session');
             }
 
             const data = await response.json();
-            const { accessToken, user, interviewToken } = data;
+            const { user, interviewToken } = data;
 
-            // Set authentication in store
-            setAuth(user, accessToken);
+            // Set user in store (auth token is handled by cookies)
+            setUser(user);
 
             // Redirect to the interview page
             router.push(`/interview/${interviewToken}`);
