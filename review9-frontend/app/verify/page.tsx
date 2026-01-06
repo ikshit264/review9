@@ -25,17 +25,11 @@ function VerifyContent() {
         const verifyToken = async () => {
             try {
                 const response = await authApi.verifyToken(token);
-                setUser(response.user);
                 setStatus('success');
 
+                // Auto-redirect to login after 2 seconds
                 setTimeout(() => {
-                    if (response.user.role === 'ADMIN') {
-                        router.push('/admin');
-                    } else if (response.user.role === 'COMPANY') {
-                        router.push('/dashboard');
-                    } else {
-                        router.push('/jobs');
-                    }
+                    router.push('/login');
                 }, 2000);
             } catch (err: any) {
                 setStatus('error');
@@ -112,9 +106,15 @@ function VerifyContent() {
                                     </motion.div>
                                 </div>
                                 <div className="space-y-3">
-                                    <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Access Granted.</h1>
-                                    <p className="text-slate-500 font-medium">Welcome home. Redirecting you to workspace...</p>
+                                    <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Email Verified Successfully!</h1>
+                                    <p className="text-slate-500 font-medium">Your email has been verified. Redirecting to login...</p>
                                 </div>
+                                <button
+                                    onClick={() => router.push('/login')}
+                                    className="w-full h-14 bg-slate-900 text-white rounded-2xl font-bold hover:bg-blue-600 transition-all shadow-lg active:scale-[0.98]"
+                                >
+                                    Go to Login Now
+                                </button>
                             </motion.div>
                         )}
 

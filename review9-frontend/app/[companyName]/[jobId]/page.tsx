@@ -9,7 +9,9 @@ import { SubscriptionPlan, JobPosting } from '@/types';
 import { JobDetailLayout } from '@/components/JobDetailLayout';
 import { useJobApi } from '@/hooks/api/useJobApi';
 
-export default function CompanyInterviewDetail() {
+import { Suspense } from 'react';
+
+function CompanyInterviewDetailContent() {
   const params = useParams();
   const searchParams = useSearchParams();
   const companyId = searchParams.get('companyId') || searchParams.get('companyid') || undefined;
@@ -297,5 +299,19 @@ export default function CompanyInterviewDetail() {
         </div>
       </Modal>
     </JobDetailLayout>
+  );
+}
+
+export default function CompanyInterviewDetail() {
+  return (
+    <Suspense fallback={
+      <JobDetailLayout jobTitle="Loading..." companyName="">
+        <div className="flex items-center justify-center h-64">
+          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+        </div>
+      </JobDetailLayout>
+    }>
+      <CompanyInterviewDetailContent />
+    </Suspense>
   );
 }

@@ -35,7 +35,7 @@ async function apiRequest<T>(
         if (typeof window !== 'undefined' && !endpoint.includes('/auth/login')) {
             const publicPaths = ['/', '/login', '/register', '/interview/demo'];
             const isPublicPage = publicPaths.includes(window.location.pathname);
-            
+
             if (!isPublicPage) {
                 window.location.href = '/login?error=session_expired';
             }
@@ -95,9 +95,15 @@ export const authApi = {
         });
     },
     verifyToken: async (token: string) => {
-        return apiRequest<{ user: User }>('/auth/verify-link', {
+        return apiRequest<{ message: string; email: string }>('/auth/verify-link', {
             method: 'POST',
             body: JSON.stringify({ token }),
+        });
+    },
+    resendVerification: async (email: string) => {
+        return apiRequest<{ message: string; email: string }>('/auth/resend-verification', {
+            method: 'POST',
+            body: JSON.stringify({ email }),
         });
     },
 };
@@ -433,6 +439,57 @@ export const notificationsApi = {
     delete: async (id: string) => {
         return apiRequest<{ success: boolean }>(`/notifications/${id}`, { method: 'DELETE' });
     }
+};
+
+// Payments API
+export const paymentsApi = {
+    createCheckoutSession: async (plan: 'PRO' | 'ULTRA', returnUrl?: string) => {
+        return apiRequest<{
+            checkoutUrl: string;
+            plan: string;
+            amount: number;
+            currency: string;
+        }>('/payments/create-checkout', {
+            method: 'POST',
+            body: JSON.stringify({ plan, returnUrl }),
+        });
+    },
+
+    verifyPayment: async (paymentId: string) => {
+        return apiRequest<{
+            verified: boolean;
+            message?: string;
+            payment?: {
+                id: string;
+                plan: string;
+                amount: number;
+                currency: string;
+                status: string;
+                subscriptionStart: string;
+                subscriptionEnd: string;
+            };
+            user?: {
+                id: string;
+                email: string;
+                name: string;
+                plan: string;
+                subscriptionExpiresAt: string;
+            };
+        }>(`/payments/verify/${paymentId}`);
+    },
+
+    getPaymentHistory: async () => {
+        return apiRequest<Array<{
+            id: string;
+            plan: 'PRO' | 'ULTRA';
+            amount: number;
+            currency: string;
+            status: string;
+            subscriptionStart: string;
+            subscriptionEnd: string;
+            createdAt: string;
+        }>>('/payments/history');
+    },
 };
 
 // Admin API

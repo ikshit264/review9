@@ -23,7 +23,9 @@ const ToggleRow = ({ label, enabled, onClick, locked }: { label: string; enabled
   </div>
 );
 
-export default function JobEdit() {
+import { Suspense } from 'react';
+
+function JobEditContent() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -258,5 +260,19 @@ export default function JobEdit() {
         </div>
       </div>
     </JobDetailLayout>
+  );
+}
+
+export default function JobEdit() {
+  return (
+    <Suspense fallback={
+      <JobDetailLayout jobTitle="Loading..." companyName="">
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+        </div>
+      </JobDetailLayout>
+    }>
+      <JobEditContent />
+    </Suspense>
   );
 }

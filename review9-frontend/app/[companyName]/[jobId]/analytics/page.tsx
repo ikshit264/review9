@@ -8,7 +8,9 @@ import { Card, Skeleton } from '@/components/UI';
 import { useJobApi } from '@/hooks/api/useJobApi';
 import { SubscriptionPlan } from '@/types';
 
-export default function JobAnalytics() {
+import { Suspense } from 'react';
+
+function JobAnalyticsContent() {
   const params = useParams();
   const searchParams = useSearchParams();
   const companyId = searchParams.get('companyId') || searchParams.get('companyid') || undefined;
@@ -162,5 +164,19 @@ export default function JobAnalytics() {
         </Card>
       )}
     </JobDetailLayout>
+  );
+}
+
+export default function JobAnalytics() {
+  return (
+    <Suspense fallback={
+      <JobDetailLayout jobTitle="Loading..." companyName="">
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+        </div>
+      </JobDetailLayout>
+    }>
+      <JobAnalyticsContent />
+    </Suspense>
   );
 }

@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, Suspense } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/api/useAuth';
 import { useStore } from '@/store/useStore';
 import { AnalyticsLoading } from '@/components/UI/AnalyticsLoading';
 
-export default function ProfileGuard({ children }: { children: React.ReactNode }) {
+function ProfileGuardContent({ children }: { children: React.ReactNode }) {
     const { user, isLoadingProfile } = useAuth();
     const storeUser = useStore((state) => state.user); // Check store directly for faster access
     const router = useRouter();
@@ -53,4 +53,12 @@ export default function ProfileGuard({ children }: { children: React.ReactNode }
     }
 
     return <>{children}</>;
+}
+
+export default function ProfileGuard({ children }: { children: React.ReactNode }) {
+    return (
+        <Suspense fallback={<AnalyticsLoading />}>
+            <ProfileGuardContent>{children}</ProfileGuardContent>
+        </Suspense>
+    );
 }

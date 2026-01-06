@@ -95,7 +95,7 @@ export default function AdminDashboard() {
                                     Security Logs
                                 </h3>
                                 <div className="space-y-6">
-                                    {activities?.recentActivity.map((log: any, i: number) => (
+                                    {(activities?.recentActivity || []).map((log: any, i: number) => (
                                         <div key={i} className="flex items-start gap-4 p-4 rounded-2xl hover:bg-gray-50 transition-colors">
                                             <div className="w-2 h-2 rounded-full bg-blue-500 mt-2 shrink-0" />
                                             <div>

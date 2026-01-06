@@ -381,6 +381,43 @@ export default function InterviewPage() {
     try {
       const elem = document.documentElement;
       if (!document.fullscreenElement) {
+        // Create a promise that resolves when fullscreen is actually active
+        const fullscreenPromise = new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            cleanup();
+            reject(new Error("Fullscreen timeout"));
+          }, 3000); // 3 second timeout
+
+          const cleanup = () => {
+            clearTimeout(timeout);
+            document.removeEventListener('fullscreenchange', onFullscreenChange);
+            document.removeEventListener('webkitfullscreenchange', onFullscreenChange);
+            document.removeEventListener('mozfullscreenchange', onFullscreenChange);
+            document.removeEventListener('MSFullscreenChange', onFullscreenChange);
+            document.removeEventListener('fullscreenerror', onFullscreenError);
+          };
+
+          const onFullscreenChange = () => {
+            const isFs = !!(document.fullscreenElement || (document as any).webkitFullscreenElement || (document as any).msFullscreenElement);
+            if (isFs) {
+              cleanup();
+              resolve();
+            }
+          };
+
+          const onFullscreenError = () => {
+            cleanup();
+            reject(new Error("Fullscreen request denied"));
+          };
+
+          document.addEventListener('fullscreenchange', onFullscreenChange);
+          document.addEventListener('webkitfullscreenchange', onFullscreenChange);
+          document.addEventListener('mozfullscreenchange', onFullscreenChange);
+          document.addEventListener('MSFullscreenChange', onFullscreenChange);
+          document.addEventListener('fullscreenerror', onFullscreenError);
+        });
+
+        // Request fullscreen
         if (elem.requestFullscreen) {
           await elem.requestFullscreen();
         } else if ((elem as any).webkitRequestFullscreen) {
@@ -388,12 +425,17 @@ export default function InterviewPage() {
         } else if ((elem as any).msRequestFullscreen) {
           await (elem as any).msRequestFullscreen();
         }
+
+        // Wait for the actual fullscreen change event
+        await fullscreenPromise;
       }
+
       setSecurityStatus(prev => ({ ...prev, fullscreen: true }));
       toast.success("Secure Full Screen Enabled");
     } catch (err) {
       console.error("Fullscreen failed:", err);
       toast.error("Fullscreen request failed. Please enable it to continue.");
+      throw err; // Re-throw to be caught by handleStart
     }
   };
 
@@ -458,10 +500,7 @@ export default function InterviewPage() {
       try {
         console.log("[Interview] Full-screen required. Requesting...");
         await verifyFullscreen();
-        // Check again after request - some browsers might delay the state update
-        if (!document.fullscreenElement && !(document as any).webkitFullscreenElement) {
-          throw new Error("Fullscreen not active");
-        }
+        // verifyFullscreen now waits for the actual fullscreen state, no need to check again
       } catch (err) {
         toast.error("Full screen mode is strictly required to begin.");
         return;
@@ -470,8 +509,9 @@ export default function InterviewPage() {
 
 
     if (isDemo) {
-      setSessionId('demo-session');
-      startInterview();
+      const demoSessionId = 'demo-session';
+      setSessionId(demoSessionId);
+      startInterview(demoSessionId);
       return;
     }
 
@@ -484,7 +524,8 @@ export default function InterviewPage() {
         resumeText
       });
       setSessionId(session.id);
-      startInterview();
+      // Pass session.id directly instead of relying on state update
+      startInterview(session.id);
     } catch (err) {
       console.error("Failed to start session:", err);
       toast.error("An error occurred while starting the session.");

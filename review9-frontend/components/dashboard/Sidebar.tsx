@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { Suspense } from 'react';
 import {
     Briefcase,
     LogOut,
@@ -14,7 +14,7 @@ import { useAuth } from '@/hooks/api/useAuth';
 import { useStore } from '@/store/useStore';
 import { cn } from '@/lib/utils';
 
-export const Sidebar = () => {
+const SidebarContent = () => {
     const router = useRouter();
     const pathname = usePathname();
     const { logout } = useAuth();
@@ -101,5 +101,13 @@ export const Sidebar = () => {
                 </button>
             </div>
         </aside>
+    );
+};
+
+export const Sidebar = () => {
+    return (
+        <Suspense fallback={<div className="w-20 lg:w-72 min-h-screen border-r border-gray-100 bg-white"></div>}>
+            <SidebarContent />
+        </Suspense>
     );
 };

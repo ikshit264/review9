@@ -14,7 +14,7 @@ export const AnalyticsLoading = () => {
             {/* Header Skeleton */}
             <div className="flex justify-between items-center mb-12 relative z-10">
                 <div className="flex items-center space-x-2">
-                    <div className="w-10 h-10 bg-slate-100 rounded-xl animate-pulse flex items-center justify-center">
+                    <div className="w-10 h-10 bg-slate-100 rounded-xl animate-pulse flex items-center justify-center inset-0">
                         <Zap className="w-6 h-6 text-slate-300" />
                     </div>
                     <div className="h-6 w-24 bg-slate-100 rounded-full animate-pulse" />
@@ -117,13 +117,13 @@ export const AnalyticsLoading = () => {
             </div>
 
             {/* Center Logo / Loading Indicator */}
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center space-y-6">
-                <div className="w-16 h-16 bg-blue-600 rounded-2xl shadow-2xl shadow-blue-500/20 flex items-center justify-center animate-bounce">
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center space-y-6 z-[1000]">
+                <div className="w-16 h-16 bg-blue-600 rounded-2xl shadow-2xl shadow-blue-500/20 flex items-center justify-center animate-bounce ">
                     <Zap className="w-10 h-10 text-white fill-current" />
                 </div>
                 <div className="flex flex-col items-center">
                     <div className="text-xl font-bold italic text-slate-900">Hire<span className="text-blue-600">AI</span></div>
-                    <div className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 mt-1">Preparing Statistics...</div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 mt-1">Loading Page...</div>
                 </div>
             </div>
         </div>

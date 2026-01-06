@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { Suspense } from 'react';
 import { useRouter, useParams, usePathname, useSearchParams } from 'next/navigation';
 import { Button } from './UI';
 
@@ -11,7 +11,7 @@ interface JobDetailLayoutProps {
   onInviteClick?: () => void;
 }
 
-export const JobDetailLayout: React.FC<JobDetailLayoutProps> = ({ children, jobTitle, companyName, onInviteClick }) => {
+const JobDetailLayoutContent: React.FC<JobDetailLayoutProps> = ({ children, jobTitle, companyName, onInviteClick }) => {
   const router = useRouter();
   const params = useParams();
   const searchParams = useSearchParams();
@@ -87,6 +87,14 @@ export const JobDetailLayout: React.FC<JobDetailLayoutProps> = ({ children, jobT
         {children}
       </main>
     </div>
+  );
+};
+
+export const JobDetailLayout: React.FC<JobDetailLayoutProps> = (props) => {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#F8F9FA] flex items-center justify-center">Loading...</div>}>
+      <JobDetailLayoutContent {...props} />
+    </Suspense>
   );
 };
 

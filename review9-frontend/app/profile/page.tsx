@@ -10,6 +10,7 @@ import { UserRole, SubscriptionPlan } from '@/types';
 import { Sidebar } from '@/components/dashboard/Sidebar';
 import { NotificationDropdown } from '@/components/dashboard/NotificationDropdown';
 import { useToast } from '@/hooks/useToast';
+import { ResumeUpload } from '@/components/upload/ResumeUpload';
 import {
    User as UserIcon,
    MapPin,
@@ -26,7 +27,10 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-export default function ProfilePage() {
+import { Suspense } from 'react';
+import { Loader2 } from 'lucide-react';
+
+function ProfileContent() {
    const router = useRouter();
    const searchParams = useSearchParams();
    const toast = useToast();
@@ -258,16 +262,15 @@ export default function ProfilePage() {
                                     placeholder="Brief summary of your professional expertise..."
                                  />
                               </div>
-                              <div className="space-y-2 group">
-                                 <label className="text-[10px] font-black text-gray-400 uppercase ml-1 tracking-widest group-focus-within:text-blue-500 transition-colors">Resume Ledger (Public URL)</label>
-                                 <div className="relative">
-                                    <input
-                                       className="w-full px-6 py-4 bg-gray-50/50 border border-gray-100 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none font-bold transition-all text-sm"
-                                       value={formData.resumeUrl}
-                                       onChange={e => setFormData({ ...formData, resumeUrl: e.target.value })}
-                                       placeholder="https://drive.google.com/..."
-                                    />
-                                 </div>
+                              <div className="space-y-2">
+                                 <label className="text-[10px] font-black text-gray-400 uppercase ml-1 tracking-widest">Resume Upload</label>
+                                 <ResumeUpload
+                                    currentResumeUrl={formData.resumeUrl}
+                                    onUploadSuccess={(resumeUrl) => {
+                                       setFormData({ ...formData, resumeUrl });
+                                       toast.success('Resume uploaded successfully!');
+                                    }}
+                                 />
                               </div>
                            </div>
                         </section>
@@ -400,5 +403,17 @@ export default function ProfilePage() {
             </main>
          </div>
       </div>
+   );
+}
+
+export default function ProfilePage() {
+   return (
+      <Suspense fallback={
+         <div className="min-h-screen bg-white flex items-center justify-center">
+            <Loader2 className="w-10 h-10 text-blue-600 animate-spin" />
+         </div>
+      }>
+         <ProfileContent />
+      </Suspense>
    );
 }

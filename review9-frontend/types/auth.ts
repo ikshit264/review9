@@ -21,7 +21,9 @@ export interface User {
     name: string;
     email: string;
     role: UserRole;
-    plan?: SubscriptionPlan;
+    plan?: SubscriptionPlan | null;
+    subscriptionExpiresAt?: string | null;
+    lastPaymentAt?: string | null;
     avatar?: string;
     bio?: string;
     location?: string;
@@ -33,3 +35,4 @@ export interface User {
     skills?: string[];
     approvalStatus?: ApprovalStatus;
 }
+

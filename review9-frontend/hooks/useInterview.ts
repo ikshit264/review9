@@ -491,20 +491,19 @@ export const useInterview = (
 
     const preventContextMenu = (e: MouseEvent) => e.preventDefault();
 
-    // Anti-Debug: Recursive debugger loop
-    // If DevTools is open, this will hit a breakpoint every second, making the interview unusable.
+    // Anti-Debug: DevTools detection
+    // Detects if DevTools is open by checking console timing
     const antiDebug = setInterval(() => {
       if (interviewStarted && !isPausedRef.current) {
-        (function detect(i) {
-          if (typeof i === 'string') {
-            return (function (a: any) { }).constructor('debugger').apply('stateObject');
-          } else if (('' + (i / i)).length !== 1 || i % 20 === 0) {
-            (function () { }).constructor('debugger')();
-          } else {
-            debugger;
-          }
-          detect(++i);
-        }(0));
+        const start = performance.now();
+        // This debugger statement will pause execution if DevTools is open
+        debugger;
+        const end = performance.now();
+        
+        // If DevTools is open, the time difference will be significant
+        if (end - start > 100) {
+          handleMalpractice('Developer tools detected. Please close them to continue.', 'tab_switch');
+        }
       }
     }, 1000);
 
@@ -542,8 +541,9 @@ export const useInterview = (
     return () => clearInterval(timer);
   }, [interviewStarted, timeLeft, isPaused, onTimeUp]);
 
-  const startInterview = async () => {
-    if (!sessionId) return;
+  const startInterview = async (providedSessionId?: string) => {
+    const activeSessionId = providedSessionId || sessionId;
+    if (!activeSessionId) return;
 
     // Final check for fullscreen if required
     if (settings?.fullScreenMode) {
@@ -561,7 +561,7 @@ export const useInterview = (
     setTimeLeft(plan === SubscriptionPlan.FREE ? 25 * 60 : 45 * 60);
 
     try {
-      const initialQs = await interviewsApi.getInitialQuestions(sessionId);
+      const initialQs = await interviewsApi.getInitialQuestions(activeSessionId);
       setQuestions(initialQs);
       speak(initialQs[0]);
     } catch (err) {

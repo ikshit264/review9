@@ -22,7 +22,9 @@ interface Candidate extends GlobalCandidate {
   invitedAt?: string;
 }
 
-export default function JobResponses() {
+import { Suspense } from 'react';
+
+function JobResponsesContent() {
   const params = useParams();
   const searchParams = useSearchParams();
   const companyId = searchParams.get('companyId') || searchParams.get('companyid') || undefined;
@@ -309,7 +311,9 @@ export default function JobResponses() {
               </div>
               <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100">
                 <div className="text-[10px] text-gray-400 uppercase font-black tracking-widest mb-2">Overall Score</div>
-                <ScoreIndicator score={sessionData?.session?.overallScore || selectedCandidate.score} />
+                <div className="flex items-center space-x-2">
+                  <ScoreIndicator score={sessionData?.session?.overallScore || selectedCandidate.score} />
+                </div>
               </div>
               <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100">
                 <div className="text-[10px] text-gray-400 uppercase font-black tracking-widest mb-2">AI Assessment</div>
@@ -480,5 +484,19 @@ export default function JobResponses() {
         </div>
       </Modal>
     </JobDetailLayout>
+  );
+}
+
+export default function JobResponses() {
+  return (
+    <Suspense fallback={
+      <JobDetailLayout jobTitle="Loading..." companyName="">
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+        </div>
+      </JobDetailLayout>
+    }>
+      <JobResponsesContent />
+    </Suspense>
   );
 }

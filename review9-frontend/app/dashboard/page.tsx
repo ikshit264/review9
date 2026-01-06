@@ -11,7 +11,7 @@ import { NotificationDropdown } from '@/components/dashboard/NotificationDropdow
 import { useDashboardPageApi } from '@/hooks/api/useDashboardPageApi';
 import { useToast } from '@/hooks/useToast';
 import { Sidebar } from '@/components/dashboard/Sidebar';
-import { LoadingOverlay } from '@/components/LoadingOverlay';
+import { LoadingScreen } from '@/components/loading';
 import { cn } from '@/lib/utils';
 
 import {
@@ -31,7 +31,10 @@ import {
   FileSearch
 } from 'lucide-react';
 
-export default function Dashboard() {
+import { Suspense } from 'react';
+import { Loader2 } from 'lucide-react';
+
+function DashboardContent() {
   const { user } = useStore();
   const searchParams = useSearchParams();
   const companyId = searchParams.get('companyId') || searchParams.get('companyid') || undefined;
@@ -191,10 +194,20 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-[#FDFDFE] text-slate-900 selection:bg-blue-100">
-      <LoadingOverlay
-        isLoading={isProcessing}
-        message={isCreatingJob ? 'Creating job...' : isInviting ? 'Sending invitations...' : 'Processing...'}
-      />
+      {isCreatingJob && (
+        <LoadingScreen
+          variant="form"
+          message="Creating job posting"
+          submessage="Setting up your new opportunity..."
+        />
+      )}
+      {isInviting && (
+        <LoadingScreen
+          variant="email"
+          message="Sending invitations"
+          submessage="Notifying candidates about the opportunity..."
+        />
+      )}
       <div className="flex relative z-10">
         <Sidebar />
         {/* Main Content */}
@@ -378,5 +391,13 @@ export default function Dashboard() {
         invitationProgress={invitationProgress}
       />
     </div>
+  );
+}
+
+export default function Dashboard() {
+  return (
+    <Suspense fallback={<LoadingScreen variant="page" message="Loading dashboard..." />}>
+      <DashboardContent />
+    </Suspense>
   );
 }
