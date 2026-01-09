@@ -41,7 +41,17 @@ export class JobsService {
     private configService: ConfigService,
     private notificationsService: NotificationsService,
     private timeWindowService: TimeWindowService,
-  ) {}
+  ) { }
+
+  private parseUtcDate(dateStr: string): Date {
+    if (!dateStr) return new Date();
+    // If it already has timezone info, parse normally
+    if (dateStr.includes('Z') || dateStr.includes('+') || (dateStr.split('-').length > 3)) {
+      return new Date(dateStr);
+    }
+    // Otherwise, treat it as UTC by appending 'Z'
+    return new Date(`${dateStr}Z`);
+  }
 
   async createJob(userId: string, userPlan: Plan, dto: CreateJobDto) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
@@ -53,8 +63,8 @@ export class JobsService {
     }
 
     // Validate time gap (minimum 30 minutes)
-    const startTime = new Date(dto.interviewStartTime);
-    const endTime = new Date(dto.interviewEndTime);
+    const startTime = this.parseUtcDate(dto.interviewStartTime);
+    const endTime = this.parseUtcDate(dto.interviewEndTime);
     const diffMinutes = (endTime.getTime() - startTime.getTime()) / (1000 * 60);
 
     if (diffMinutes < 0) {
@@ -112,10 +122,9 @@ export class JobsService {
         description: dto.description,
         notes: dto.notes,
         companyId: userId,
-        interviewStartTime: new Date(dto.interviewStartTime),
-        interviewEndTime: new Date(dto.interviewEndTime),
+        interviewStartTime: this.parseUtcDate(dto.interviewStartTime),
+        interviewEndTime: this.parseUtcDate(dto.interviewEndTime),
         planAtCreation: userPlan ?? Plan.FREE,
-        timezone: dto.timezone,
         customQuestions: dto.customQuestions || [],
         aiSpecificRequirements: dto.aiSpecificRequirements,
         ...jobSettings,
@@ -238,7 +247,10 @@ export class JobsService {
     job: Prisma.JobGetPayload<{ include: { company: true } }>,
     progressKey: string,
   ) {
-    const appUrl = this.configService.get<string>('APP_URL');
+    const appUrl =
+      this.configService.get<string>('APP_URL') ||
+      this.configService.get<string>('FRONTEND_URL') ||
+      'http://localhost:3000';
     const progress = this.invitationProgress.get(progressKey);
 
     for (let i = 0; i < dto.candidates.length; i++) {
@@ -280,19 +292,26 @@ export class JobsService {
           });
         }
 
+        // Check if candidate already has an account
+        const candidateUser = await this.prisma.user.findUnique({
+          where: { email: candidate.email },
+        });
+
+        const needsRegistration = !candidateUser;
+        const registrationLink = `${appUrl}/register?email=${encodeURIComponent(candidate.email)}`;
+
         // Send email
         await this.emailService.sendInterviewInvite({
           to: candidate.email,
           candidateName: candidate.name,
           jobTitle: job.title,
           companyName: job.company.name,
+          companyDescription: job.company.bio,
           scheduledTime: job.interviewStartTime,
           interviewLink: `${appUrl}/interview/${candidate.interviewLink}`,
+          registrationLink,
+          needsRegistration,
           notes: job.notes,
-        });
-
-        const candidateUser = await this.prisma.user.findUnique({
-          where: { email: candidate.email },
         });
 
         const duration =
@@ -300,7 +319,7 @@ export class JobsService {
         await this.notificationsService.create(
           {
             title: 'New Interview Scheduled',
-            message: `${job.company.name} has scheduled an interview for ${job.title} on ${job.interviewStartTime.toLocaleString()}. Duration: ${duration}.`,
+            message: `${job.company.name} has scheduled an interview for ${job.title} on ${job.interviewStartTime.toLocaleString()} (UTC). Duration: ${duration}.`,
             link: `/interview/${candidate.interviewLink}`,
             type: NotificationType.INAPP,
             email: candidate.email,
@@ -440,10 +459,10 @@ export class JobsService {
       integrityRate:
         completedSessions > 0
           ? Math.round(
-              ((completedSessions * 10 - totalIncidents) /
-                (completedSessions * 10)) *
-                100,
-            )
+            ((completedSessions * 10 - totalIncidents) /
+              (completedSessions * 10)) *
+            100,
+          )
           : 100,
       timeSavedHours: Math.round(completedSessions * 0.75),
       incidentCounts,
@@ -474,9 +493,9 @@ export class JobsService {
     if (dto.description !== undefined) updateData.description = dto.description;
     if (dto.notes !== undefined) updateData.notes = dto.notes;
     if (dto.interviewStartTime)
-      updateData.interviewStartTime = new Date(dto.interviewStartTime);
+      updateData.interviewStartTime = this.parseUtcDate(dto.interviewStartTime);
     if (dto.interviewEndTime)
-      updateData.interviewEndTime = new Date(dto.interviewEndTime);
+      updateData.interviewEndTime = this.parseUtcDate(dto.interviewEndTime);
     if (dto.tabTracking !== undefined) updateData.tabTracking = dto.tabTracking;
     if (dto.eyeTracking !== undefined) updateData.eyeTracking = dto.eyeTracking;
     if (dto.multiFaceDetection !== undefined)
@@ -489,7 +508,6 @@ export class JobsService {
       updateData.customQuestions = dto.customQuestions;
     if (dto.aiSpecificRequirements !== undefined)
       updateData.aiSpecificRequirements = dto.aiSpecificRequirements;
-    if (dto.timezone !== undefined) updateData.timezone = dto.timezone;
 
     if (userPlan === Plan.FREE && requesterRole !== Role.ADMIN) {
       updateData.eyeTracking = false;
@@ -637,7 +655,7 @@ export class JobsService {
     }
 
     const now = new Date();
-    const startTime = newScheduledTime ? new Date(newScheduledTime) : now;
+    const startTime = newScheduledTime ? this.parseUtcDate(newScheduledTime) : now;
     const endTime = new Date(startTime.getTime() + 2 * 60 * 60 * 1000);
 
     await this.prisma.candidate.update({
@@ -655,14 +673,29 @@ export class JobsService {
       where: { jobId: candidate.jobId, candidate: { email: candidate.email } },
     });
 
-    const appUrl = this.configService.get<string>('APP_URL');
+    const appUrl =
+      this.configService.get<string>('APP_URL') ||
+      this.configService.get<string>('FRONTEND_URL') ||
+      'http://localhost:3000';
+
+    // Check if candidate already has an account
+    const candidateUser = await this.prisma.user.findUnique({
+      where: { email: candidate.email },
+    });
+
+    const needsRegistration = !candidateUser;
+    const registrationLink = `${appUrl}/register?email=${encodeURIComponent(candidate.email)}`;
+
     await this.emailService.sendInterviewInvite({
       to: candidate.email,
       candidateName: candidate.name,
       jobTitle: candidate.job.title,
       companyName: candidate.job.company.name,
+      companyDescription: candidate.job.company.bio,
       scheduledTime: startTime,
       interviewLink: `${appUrl}/interview/${candidate.interviewLink}`,
+      registrationLink,
+      needsRegistration,
       notes: candidate.job.notes,
     });
 

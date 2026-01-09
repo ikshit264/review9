@@ -68,7 +68,7 @@ const SidebarContent = () => {
                     <BrainCircuit className="w-6 h-6 text-white" />
                 </div>
                 <div className="hidden lg:block">
-                    <span className="text-xl font-black tracking-tighter uppercase block leading-none">HireAI</span>
+                    <span className="text-xl font-black tracking-tighter uppercase block leading-none">IntervAI</span>
                     <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Enterprise</span>
                 </div>
             </div>

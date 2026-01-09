@@ -123,7 +123,7 @@ export default function RegisterPage() {
                         <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-slate-900 mb-8 shadow-lg shadow-black/10">
                             <UserPlus className="w-7 h-7 text-white" />
                         </div>
-                        <h1 className="text-3xl font-bold text-slate-900 tracking-tight mb-3">Join HireAI.</h1>
+                        <h1 className="text-3xl font-bold text-slate-900 tracking-tight mb-3">Join IntervAI.</h1>
                         <p className="text-slate-500 font-medium tracking-tight">Experience the future of recruiting infrastructure.</p>
                     </div>
 

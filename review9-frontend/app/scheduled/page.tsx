@@ -49,7 +49,7 @@ export default function ScheduledInterviews() {
       <header className="bg-white border-b px-8 py-4 flex justify-between items-center sticky top-0 z-10">
         <div className="flex items-center space-x-3 cursor-pointer" onClick={() => router.push('/dashboard')}>
           <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold">H</div>
-          <span className="font-bold text-xl tracking-tight text-gray-900">HireAI</span>
+          <span className="font-bold text-xl tracking-tight text-gray-900">IntervAI</span>
         </div>
         <div className="flex space-x-6">
           <Button variant="ghost" onClick={() => router.push('/dashboard')}>Dashboard</Button>

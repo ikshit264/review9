@@ -51,7 +51,7 @@ export default function InterviewPage() {
       title: 'Senior Product Designer (Demo)',
       roleCategory: 'DESIGN',
       companyName: 'Innovation Labs',
-      description: 'This is a demo session to experience the HireAI platform. You will be asked technical and behavioral questions based on your resume.',
+      description: 'This is a demo session to experience the IntervAI platform. You will be asked technical and behavioral questions based on your resume.',
       interviewStartTime: new Date().toISOString(),
       interviewEndTime: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
       tabTracking: true,
@@ -792,7 +792,7 @@ export default function InterviewPage() {
         <div className="flex items-center space-x-3">
           <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-xs">AI</div>
           <div className="flex flex-col">
-            <span className="font-black text-[10px] uppercase tracking-widest leading-none">HireAI Live</span>
+            <span className="font-black text-[10px] uppercase tracking-widest leading-none">IntervAI Live</span>
             <span className="text-[10px] font-bold text-blue-400 mt-1 truncate max-w-[200px]">{interviewInfo?.job?.title}</span>
           </div>
         </div>

@@ -154,10 +154,11 @@ function DashboardContent() {
   const handleCreateJob = async (data: any) => {
     setIsCreatingJob(true);
     try {
+      const { role, emails, ...cleanData } = data;
       const newJob = await createJobMutation.mutateAsync({
-        ...data,
+        ...cleanData,
         description: data.notes || 'No description provided.',
-        roleCategory: data.role,
+        roleCategory: role,
       });
       toast.success("Job posted successfully!");
 
@@ -287,7 +288,7 @@ function DashboardContent() {
                       <Plus className="w-8 h-8 text-blue-600" />
                     </div>
                     <h3 className="text-xl font-black uppercase tracking-widest text-slate-900 mb-2">No active pipelines</h3>
-                    <p className="text-gray-400 font-medium max-w-xs text-sm leading-relaxed">Your hiring dashboard is empty. Post your first job to start using HireAI.</p>
+                    <p className="text-gray-400 font-medium max-w-xs text-sm leading-relaxed">Your hiring dashboard is empty. Post your first job to start using IntervAI.</p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
@@ -343,7 +344,7 @@ function DashboardContent() {
                           <div className="pt-6 border-t border-gray-50 flex items-center justify-between">
                             <div className="flex items-center space-x-2.5 text-gray-400">
                               <Calendar className="w-4 h-4" />
-                              <span className="text-[11px] font-bold text-slate-600">{new Date(inv.job.interviewStartTime || inv.job.scheduledTime).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                              <span className="text-[11px] font-bold text-slate-600" suppressHydrationWarning={true}>{new Date(inv.job.interviewStartTime || inv.job.scheduledTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })} (UTC)</span>
                             </div>
                             <div className="flex items-center space-x-2">
                               <button

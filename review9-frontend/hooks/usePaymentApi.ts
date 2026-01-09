@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { paymentsApi } from '../services/api';
 
 export interface PaymentTransaction {
@@ -44,7 +44,7 @@ export const usePaymentApi = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const createCheckoutSession = async (plan: 'PRO' | 'ULTRA', returnUrl?: string): Promise<CheckoutResponse | null> => {
+    const createCheckoutSession = useCallback(async (plan: 'PRO' | 'ULTRA', returnUrl?: string): Promise<CheckoutResponse | null> => {
         setLoading(true);
         setError(null);
         try {
@@ -57,9 +57,9 @@ export const usePaymentApi = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
 
-    const verifyPayment = async (paymentId: string): Promise<PaymentVerification | null> => {
+    const verifyPayment = useCallback(async (paymentId: string): Promise<PaymentVerification | null> => {
         setLoading(true);
         setError(null);
         try {
@@ -72,9 +72,9 @@ export const usePaymentApi = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
 
-    const getPaymentHistory = async (): Promise<PaymentTransaction[]> => {
+    const getPaymentHistory = useCallback(async (): Promise<PaymentTransaction[]> => {
         setLoading(true);
         setError(null);
         try {
@@ -87,7 +87,7 @@ export const usePaymentApi = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
 
     return {
         createCheckoutSession,

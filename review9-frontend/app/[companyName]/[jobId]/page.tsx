@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useStore } from '@/store/useStore';
 import { Button, Card, Modal, Input } from '@/components/UI';
@@ -10,6 +10,87 @@ import { JobDetailLayout } from '@/components/JobDetailLayout';
 import { useJobApi } from '@/hooks/api/useJobApi';
 
 import { Suspense } from 'react';
+
+function SchedulingWindowCard({ startTime, endTime }: { startTime: string; endTime: string }) {
+  const [timeLeft, setTimeLeft] = useState<string>('');
+  const [status, setStatus] = useState<'FUTURE' | 'LIVE' | 'CLOSED'>('FUTURE');
+
+  useEffect(() => {
+    const calculateTime = () => {
+      const now = new Date();
+      const start = new Date(startTime);
+      const end = new Date(endTime);
+
+      if (now < start) {
+        setStatus('FUTURE');
+        const diff = start.getTime() - now.getTime();
+        const hours = Math.floor(diff / (1000 * 60 * 60));
+        const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        setTimeLeft(`${hours}h ${mins}m`);
+      } else if (now >= start && now <= end) {
+        setStatus('LIVE');
+        const diff = end.getTime() - now.getTime();
+        const hours = Math.floor(diff / (1000 * 60 * 60));
+        const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        setTimeLeft(`${hours}h ${mins}m`);
+      } else {
+        setStatus('CLOSED');
+        setTimeLeft('Expired');
+      }
+    };
+
+    calculateTime();
+    const timer = setInterval(calculateTime, 60000); // Update every minute
+    return () => clearInterval(timer);
+  }, [startTime, endTime]);
+
+  const formatDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+      timeZone: 'UTC'
+    }) + ' UTC';
+  };
+
+  return (
+    <Card className="p-8 border-none shadow-xl bg-white overflow-hidden relative">
+      <div className={`absolute top-0 right-0 w-2 h-full ${status === 'LIVE' ? 'bg-green-500' : status === 'FUTURE' ? 'bg-blue-500' : 'bg-gray-300'}`}></div>
+      <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest mb-6">Scheduling Window</h3>
+
+      <div className="space-y-6">
+        <div>
+          <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Interview Start</div>
+          <div className="text-sm font-bold text-gray-900 bg-gray-50 p-3 rounded-xl border border-gray-100">{formatDate(startTime)}</div>
+        </div>
+
+        <div>
+          <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Interview End</div>
+          <div className="text-sm font-bold text-gray-900 bg-gray-50 p-3 rounded-xl border border-gray-100">{formatDate(endTime)}</div>
+        </div>
+
+        <div className={`p-4 rounded-2xl ${status === 'LIVE' ? 'bg-green-50 border-green-100' : status === 'FUTURE' ? 'bg-blue-50 border-blue-100' : 'bg-gray-50 border-gray-100'} border mt-2`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <div className={`w-2 h-2 rounded-full ${status === 'LIVE' ? 'bg-green-500 animate-pulse' : status === 'FUTURE' ? 'bg-blue-500' : 'bg-gray-400'}`}></div>
+              <span className={`text-[10px] font-black uppercase tracking-widest ${status === 'LIVE' ? 'text-green-700' : status === 'FUTURE' ? 'text-blue-700' : 'text-gray-500'}`}>
+                {status === 'LIVE' ? 'Ongoing' : status === 'FUTURE' ? 'Upcoming' : 'Closed'}
+              </span>
+            </div>
+            {status !== 'CLOSED' && (
+              <div className="text-xs font-black text-gray-900">
+                {status === 'FUTURE' ? 'Starts in ' : 'Ends in '}
+                <span className={status === 'LIVE' ? 'text-green-600' : 'text-blue-600'}>{timeLeft}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
+}
 
 function CompanyInterviewDetailContent() {
   const params = useParams();
@@ -223,6 +304,8 @@ function CompanyInterviewDetailContent() {
         </div>
 
         <div className="lg:col-span-4 space-y-6">
+          <SchedulingWindowCard startTime={job.interviewStartTime} endTime={job.interviewEndTime} />
+
           <Card className="p-8 border-none shadow-xl bg-white">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest">Active Security</h3>

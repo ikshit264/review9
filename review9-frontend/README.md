@@ -1,4 +1,4 @@
-# HireAI - AI-Powered Recruitment Platform
+# IntervAI - AI-Powered Recruitment Platform
 
 A Next.js application for AI-led technical and behavioral interviews with advanced proctoring features.
 

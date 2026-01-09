@@ -252,11 +252,11 @@ function JobResponsesContent() {
                 <td className="px-6 py-4">
                   <FitIndicator isFit={candidate.isFit} />
                 </td>
-                <td className="px-6 py-4 text-xs text-gray-500 font-medium">
+                <td className="px-6 py-4 text-xs text-gray-500 font-medium" suppressHydrationWarning={true}>
                   {candidate.completedAt
-                    ? new Date(candidate.completedAt).toLocaleDateString()
+                    ? `${new Date(candidate.completedAt).toLocaleDateString('en-US', { timeZone: 'UTC' })} (UTC)`
                     : candidate.invitedAt
-                      ? `Invited ${new Date(candidate.invitedAt).toLocaleDateString()}`
+                      ? `Invited ${new Date(candidate.invitedAt).toLocaleDateString('en-US', { timeZone: 'UTC' })} (UTC)`
                       : 'Pending'
                   }
                 </td>
@@ -439,7 +439,7 @@ function JobResponsesContent() {
                           <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${log.severity === 'high' ? 'bg-red-100 text-red-600' : log.severity === 'medium' ? 'bg-orange-100 text-orange-600' : 'bg-yellow-100 text-yellow-600'}`}>
                             {log.severity}
                           </span>
-                          <span className="text-gray-400">{new Date(log.timestamp).toLocaleTimeString()}</span>
+                          <span className="text-gray-400" suppressHydrationWarning={true}>{new Date(log.timestamp).toLocaleTimeString()} (UTC)</span>
                         </div>
                       </div>
                     ))}
@@ -473,7 +473,7 @@ function JobResponsesContent() {
             <span className="text-2xl mt-1">⚠️</span>
             <div>
               <p className="text-orange-800 font-black text-sm uppercase tracking-wider mb-1">Important Action</p>
-              <p className="text-orange-700 text-sm font-bold">This will reset the candidate's interview session and allow them to take it again from the beginning. A new invitation email will be sent automatically.</p>
+              <p className="text-orange-700 text-sm font-bold">This will reset the candidate's interview session and allow them to take it again from the beginning. A new invitation email will be sent automatically with a **UTC** timestamp.</p>
             </div>
           </div>
 

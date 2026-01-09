@@ -5,7 +5,6 @@ import { Modal, Input, Button } from '../UI';
 import { SubscriptionPlan } from '@/types';
 import { APP_CONFIG } from '@/config';
 import { useToast } from '@/hooks/useToast';
-import { getUserTimezone, localToUTC } from '@/lib/timezone';
 
 interface JobModalProps {
   isOpen: boolean;
@@ -16,7 +15,6 @@ interface JobModalProps {
     emails: string[];
     interviewStartTime: string;
     interviewEndTime: string;
-    timezone: string;
     notes?: string;
     tabTracking?: boolean;
     eyeTracking?: boolean;
@@ -101,17 +99,14 @@ export const JobModal: React.FC<JobModalProps> = ({
       return;
     }
 
-    const timezone = formData.get('timezone') as string;
-
     const filteredQuestions = customQuestions.filter(q => q.trim() !== '');
 
     onSubmit({
       title: formData.get('jobTitle') as string,
       role: formData.get('role') as string,
       emails,
-      interviewStartTime: localToUTC(startTime),
-      interviewEndTime: localToUTC(endTime),
-      timezone: timezone,
+      interviewStartTime: startTime,
+      interviewEndTime: endTime,
       notes: formData.get('notes') as string,
       tabTracking,
       eyeTracking,
@@ -132,7 +127,7 @@ export const JobModal: React.FC<JobModalProps> = ({
           <Input name="role" label="Role Category" placeholder="e.g. Frontend" required disabled={isInviting} />
           <Input
             name="interviewStartTime"
-            label="Interview Start"
+            label="Interview Start (UTC)"
             type="datetime-local"
             required
             disabled={isInviting}
@@ -147,7 +142,7 @@ export const JobModal: React.FC<JobModalProps> = ({
         <div>
           <Input
             name="interviewEndTime"
-            label="Interview End"
+            label="Interview End (UTC)"
             type="datetime-local"
             required
             disabled={isInviting}
@@ -162,20 +157,12 @@ export const JobModal: React.FC<JobModalProps> = ({
           )}
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Timezone</label>
-          <select
-            name="timezone"
-            defaultValue={getUserTimezone()}
-            disabled={isInviting}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm appearance-none bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
-          >
-            <option value={getUserTimezone()}>{getUserTimezone()} (Detected)</option>
-            <option value="UTC">UTC</option>
-            <option value="Asia/Kolkata">Asia/Kolkata (IST)</option>
-            <option value="America/New_York">America/New_York (EST)</option>
-            <option value="Europe/London">Europe/London (GMT)</option>
-          </select>
+        <div className="bg-blue-50 border border-blue-200 p-3 rounded-lg flex items-center gap-3">
+          <span className="text-xl">🌎</span>
+          <div>
+            <p className="text-[10px] font-black text-blue-800 uppercase tracking-widest">Global UTC Standard</p>
+            <p className="text-xs text-blue-700 font-medium italic">IntervAI uses UTC for all scheduling to ensure global consistency. Please enter your times in UTC.</p>
+          </div>
         </div>
 
         <div>

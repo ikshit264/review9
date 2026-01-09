@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useStore } from '@/store/useStore';
 import { LoadingButton } from '@/components/UI';
 import { authApi, billingApi } from '@/services/api';
-import { getUserTimezone } from '@/lib/timezone';
 import { UserRole, SubscriptionPlan } from '@/types';
 import { Sidebar } from '@/components/dashboard/Sidebar';
 import { NotificationDropdown } from '@/components/dashboard/NotificationDropdown';
@@ -29,6 +28,7 @@ import { cn } from '@/lib/utils';
 
 import { Suspense } from 'react';
 import { Loader2 } from 'lucide-react';
+import { getAllTimezones, TimezoneInfo, detectUserTimezone } from '@/lib/timezones';
 
 function ProfileContent() {
    const router = useRouter();
@@ -45,11 +45,17 @@ function ProfileContent() {
       bio: user?.bio || '',
       location: user?.location || '',
       phone: user?.phone || '',
-      timezone: user?.timezone || getUserTimezone(),
+      timezone: user?.timezone || 'UTC',
       resumeUrl: user?.resumeUrl || '',
       skills: user?.skills || [],
       workExperience: user?.workExperience || [],
    });
+
+   const [timezones, setTimezones] = useState<TimezoneInfo[]>([]);
+
+   useEffect(() => {
+      setTimezones(getAllTimezones());
+   }, []);
 
    const isMandatoryMode = searchParams.get('mandatory') === 'true' || !user?.isProfileComplete;
 
@@ -58,13 +64,13 @@ function ProfileContent() {
    const handleAutoDetect = async () => {
       setDetecting(true);
       try {
-         const data = await authApi.detectTimezone();
+         // Use local JSON-based detection instead of API
+         const data = detectUserTimezone();
          setFormData(prev => ({
             ...prev,
-            timezone: data.timezone,
-            location: data.location
+            timezone: data.timezone
          }));
-         toast.success("Location detected!");
+         toast.success("Timezone detected locally!");
       } catch (err) {
          toast.error("Detection failed");
       } finally {
@@ -232,11 +238,9 @@ function ProfileContent() {
                                  value={formData.timezone}
                                  onChange={e => setFormData({ ...formData, timezone: e.target.value })}
                               >
-                                 <option value={formData.timezone}>{formData.timezone}</option>
-                                 <option value="Asia/Kolkata">Asia/Kolkata (IST)</option>
-                                 <option value="America/New_York">America/New_York (EST)</option>
-                                 <option value="Europe/London">Europe/London (GMT)</option>
-                                 <option value="UTC">UTC</option>
+                                 {timezones.map(tz => (
+                                    <option key={tz.value} value={tz.value}>{tz.label}</option>
+                                 ))}
                               </select>
                            </div>
                         </div>

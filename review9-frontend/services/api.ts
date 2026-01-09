@@ -87,13 +87,6 @@ export const authApi = {
             body: JSON.stringify(data),
         });
     },
-
-    detectTimezone: async (ip?: string) => {
-        return apiRequest<{ timezone: string; location: string }>('/auth/detect-timezone', {
-            method: 'POST',
-            body: JSON.stringify({ ip }),
-        });
-    },
     verifyToken: async (token: string) => {
         return apiRequest<{ message: string; email: string }>('/auth/verify-link', {
             method: 'POST',

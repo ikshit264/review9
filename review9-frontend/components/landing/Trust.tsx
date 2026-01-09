@@ -37,7 +37,7 @@ export const Trust = () => {
                                 <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center">
                                     <ShieldCheck className="w-6 h-6 text-white" />
                                 </div>
-                                <h5 className="text-2xl font-bold text-white">HireAI Guard</h5>
+                                <h5 className="text-2xl font-bold text-white">IntervAI Guard</h5>
                                 <p className="text-slate-400 text-sm leading-relaxed">Active proctoring enabled. Monitoring biometric signals at the edge.</p>
                             </div>
                             <div className="space-y-2">

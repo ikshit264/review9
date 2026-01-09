@@ -159,11 +159,12 @@ export default function BillingPage() {
                                             <Calendar className="w-5 h-5 text-blue-500" />
                                             <span className="font-medium">
                                                 Expires on{' '}
-                                                <span className="font-bold text-gray-900">
+                                                <span className="font-bold text-gray-900" suppressHydrationWarning={true}>
                                                     {subscriptionInfo.expiresAt.toLocaleDateString('en-US', {
                                                         year: 'numeric',
                                                         month: 'long',
                                                         day: 'numeric',
+                                                        timeZone: 'UTC'
                                                     })}
                                                 </span>
                                             </span>
@@ -269,11 +270,12 @@ export default function BillingPage() {
                                                             animation: `fadeInUp 0.5s ease-out ${index * 0.1}s both`
                                                         }}
                                                     >
-                                                        <td className="py-5 px-4 text-sm text-gray-700 font-medium">
+                                                        <td className="py-5 px-4 text-sm text-gray-700 font-medium" suppressHydrationWarning={true}>
                                                             {new Date(payment.createdAt).toLocaleDateString('en-US', {
                                                                 month: 'short',
                                                                 day: 'numeric',
-                                                                year: 'numeric'
+                                                                year: 'numeric',
+                                                                timeZone: 'UTC'
                                                             })}
                                                         </td>
                                                         <td className="py-5 px-4">
@@ -285,7 +287,7 @@ export default function BillingPage() {
                                                             <span className="text-lg">${payment.amount}</span>
                                                             <span className="text-xs text-gray-500 ml-1">{payment.currency}</span>
                                                         </td>
-                                                        <td className="py-5 px-4 text-xs text-gray-600 font-medium">
+                                                        <td className="py-5 px-4 text-xs text-gray-600 font-medium" suppressHydrationWarning={true}>
                                                             {new Date(payment.subscriptionStart).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} -{' '}
                                                             {new Date(payment.subscriptionEnd).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                                                         </td>

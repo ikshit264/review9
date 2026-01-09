@@ -143,6 +143,34 @@ function JobEditContent() {
                 value={formData.role}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, role: e.target.value })}
               />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Interview Start (UTC)</label>
+                  <div className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl font-bold text-sm text-gray-500 cursor-not-allowed">
+                    {job?.interviewStartTime ? new Date(job.interviewStartTime).toLocaleString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      hour12: true,
+                      timeZone: 'UTC'
+                    }) + ' UTC' : 'Not set'}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Interview End (UTC)</label>
+                  <div className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl font-bold text-sm text-gray-500 cursor-not-allowed">
+                    {job?.interviewEndTime ? new Date(job.interviewEndTime).toLocaleString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      hour12: true,
+                      timeZone: 'UTC'
+                    }) + ' UTC' : 'Not set'}
+                  </div>
+                </div>
+              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Detailed Description</label>
                 <textarea

@@ -94,7 +94,7 @@ export const TranscriptSidebar: React.FC<TranscriptSidebarProps> = ({
               <div className="flex items-center space-x-2 mb-1.5">
                 {m.role === 'ai' && <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse"></div>}
                 <span className={`text-[10px] font-black tracking-widest uppercase ${m.role === 'ai' ? 'text-blue-400' : 'text-gray-500'}`}>
-                  {m.role === 'ai' ? 'HireAI Assistant' : 'You (Candidate)'}
+                  {m.role === 'ai' ? 'IntervAI Assistant' : 'You (Candidate)'}
                 </span>
               </div>
               <div className={`p-4 rounded-2xl text-[13px] leading-relaxed max-w-[85%] shadow-xl transition-all ${m.role === 'user'

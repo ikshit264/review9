@@ -20,7 +20,7 @@ export class NotificationsService {
   constructor(
     private prisma: PrismaService,
     private emailService: EmailService,
-  ) {}
+  ) { }
 
   async create(dto: CreateNotificationDto, userId?: string) {
     return this.prisma.notification.create({
@@ -262,7 +262,8 @@ export class NotificationsService {
   async sendTestInterviewEmail(email: string) {
     this.logger.log(`Sending test interview email to: ${email}`);
 
-    const testInterviewLink = `${process.env.APP_URL || 'http://localhost:3000'}/interview/test-me`;
+    const appUrl = process.env.APP_URL || process.env.FRONTEND_URL || 'http://localhost:3000';
+    const testInterviewLink = `${appUrl}/interview/test-me`;
 
     const htmlContent = `
             <!DOCTYPE html>
@@ -286,12 +287,12 @@ export class NotificationsService {
                     </div>
                     <div class="content">
                         <p>Hello,</p>
-                        <p>This is a <strong>test interview invitation</strong> from the HireAI platform.</p>
+                        <p>This is a <strong>test interview invitation</strong> from the IntervAI platform.</p>
                         
                         <p><span class="badge">FREE PLAN</span></p>
                         
                         <p><strong>Position:</strong> Full Stack Developer (Test)</p>
-                        <p><strong>Company:</strong> HireAI Demo</p>
+                        <p><strong>Company:</strong> IntervAI Demo</p>
                         <p><strong>Duration:</strong> 25 minutes</p>
                         
                         <a href="${testInterviewLink}" class="button">🚀 Start Test Interview</a>
@@ -315,7 +316,7 @@ export class NotificationsService {
                         
                         <p style="margin-top: 30px; color: #666; font-size: 14px;">
                             Best of luck!<br>
-                            The HireAI Team
+                            The IntervAI Team
                         </p>
                     </div>
                 </div>
@@ -324,10 +325,10 @@ export class NotificationsService {
         `;
 
     const textContent = `
-Test Interview Invitation - HireAI Platform
+Test Interview Invitation - IntervAI Platform
 
 Position: Full Stack Developer (Test)
-Company: HireAI Demo
+Company: IntervAI Demo
 Plan: FREE (25 minutes)
 
 Start your test interview here:
@@ -336,13 +337,13 @@ ${testInterviewLink}
 This is a test environment where you can experience our AI-powered interview platform.
 
 Best of luck!
-The HireAI Team
+The IntervAI Team
         `;
 
     try {
       const emailSent = await this.emailService.sendMail(
         email,
-        '🎯 Test Interview Invitation - HireAI Platform (FREE Plan)',
+        '🎯 Test Interview Invitation - IntervAI Platform (FREE Plan)',
         textContent,
         htmlContent,
       );

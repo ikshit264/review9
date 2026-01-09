@@ -25,7 +25,7 @@ export const Footer = () => {
                     </div>
 
                     <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                        © 2026 HireAI Systems Inc. All Rights Reserved.
+                        © 2026 IntervAI Systems Inc. All Rights Reserved.
                     </div>
                 </div>
             </div>

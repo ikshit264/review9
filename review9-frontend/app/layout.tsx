@@ -3,9 +3,10 @@ import './globals.css';
 import { Providers } from './providers';
 import { ToastProvider } from '@/components/ToastProvider';
 import ProfileGuard from '@/components/auth/ProfileGuard';
+import { UtcClock } from '@/components/UtcClock';
 
 export const metadata: Metadata = {
-  title: 'HireAI - Smart Recruitment',
+  title: 'IntervAI - Smart Recruitment',
   description: 'AI-powered technical and behavioral interviews',
 };
 
@@ -22,6 +23,7 @@ export default function RootLayout({
             {children}
           </ProfileGuard>
           <ToastProvider />
+          <UtcClock />
         </Providers>
       </body>
     </html>

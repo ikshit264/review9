@@ -1,6 +1,6 @@
 # Application Code Review Report
 **Date:** 2025-01-XX  
-**Application:** Review9s (HireAI) - Full Stack Interview Platform
+**Application:** Review9s (IntervAI) - Full Stack Interview Platform
 
 ---
 

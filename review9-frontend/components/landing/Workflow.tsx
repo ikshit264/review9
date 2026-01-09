@@ -42,7 +42,7 @@ export const Workflow = () => {
                         viewport={{ once: true }}
                         className="text-blue-600 font-bold text-sm uppercase tracking-widest"
                     >
-                        The HireAI Engine
+                        The IntervAI Engine
                     </motion.h2>
                     <motion.h3
                         initial={{ opacity: 0, y: 20 }}

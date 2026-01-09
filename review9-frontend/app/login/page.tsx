@@ -140,7 +140,7 @@ export default function LoginPage() {
                 <Zap className="w-8 h-8 text-white fill-current" />
               </div>
               <h1 className="text-3xl font-bold text-slate-900 tracking-tight mb-3">Welcome back.</h1>
-              <p className="text-slate-500 font-medium">Log in to manage your HireAI pipeline.</p>
+              <p className="text-slate-500 font-medium">Log in to manage your IntervAI pipeline.</p>
             </div>
 
             <AnimatePresence mode="wait">
