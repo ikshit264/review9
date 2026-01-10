@@ -117,14 +117,9 @@ export const AnalyticsLoading = () => {
             </div>
 
             {/* Center Logo / Loading Indicator */}
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center space-y-6 z-[1000]">
-                <div className="w-16 h-16 bg-blue-600 rounded-2xl shadow-2xl shadow-blue-500/20 flex items-center justify-center animate-bounce ">
-                    <Zap className="w-10 h-10 text-white fill-current" />
-                </div>
-                <div className="flex flex-col items-center">
-                    <div className="text-xl font-bold italic text-slate-900">Hire<span className="text-blue-600">AI</span></div>
-                    <div className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 mt-1">Loading Page...</div>
-                </div>
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center space-y-6 z-[1000] w-full max-w-[200px]">
+                <img src="/logo-full.png" alt="IntervAI Logo" className="w-full h-auto object-contain animate-pulse drop-shadow-xl" />
+                <div className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Loading Intelligence...</div>
             </div>
         </div>
     );

@@ -152,10 +152,10 @@ function VerifyContent() {
 
                 {/* Footer Link */}
                 <div className="mt-12 flex justify-center items-center gap-3">
-                    <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-lg shadow-blue-500/10">
-                        <Zap className="w-4 h-4 text-white fill-current" />
+                    <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-lg shadow-blue-500/10 overflow-hidden">
+                        <img src="/logo-icon.png" alt="IntervAI Logo" className="w-6 h-6 object-contain brightness-0 invert" />
                     </div>
-                    <span className="text-sm font-bold tracking-tight text-slate-400">Hire<span className="italic text-slate-300">AI</span> Systems</span>
+                    <span className="text-sm font-bold tracking-tight text-slate-400">IntervAI Systems</span>
                 </div>
             </motion.div>
         </div>

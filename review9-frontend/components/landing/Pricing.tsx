@@ -77,6 +77,7 @@ export const Pricing = () => {
                             <button
                                 onClick={() => router.push('/login')}
                                 className={`w-full py-4 rounded-2xl font-bold text-sm transition-all active:scale-95 ${plan.highlight ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20' : 'bg-slate-900 text-white hover:bg-black'}`}
+                                aria-label={`Choose ${plan.type} plan`}
                             >
                                 {plan.cta}
                             </button>

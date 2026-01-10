@@ -64,12 +64,12 @@ const SidebarContent = () => {
     return (
         <aside className="w-20 lg:w-72 min-h-screen border-r border-gray-100 bg-white sticky top-0 flex flex-col transition-all duration-300 z-50">
             <div className="p-8 flex items-center space-x-3 cursor-pointer" onClick={() => router.push('/dashboard')}>
-                <div className="w-10 h-10 bg-blue-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-200">
-                    <BrainCircuit className="w-6 h-6 text-white" />
+                <div className="w-10 h-10 bg-blue-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-200 overflow-hidden">
+                    <img src="/logo-icon.png" alt="IntervAI Logo" className="w-7 h-7 object-contain brightness-0 invert" />
                 </div>
                 <div className="hidden lg:block">
                     <span className="text-xl font-black tracking-tighter uppercase block leading-none">IntervAI</span>
-                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Enterprise</span>
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Assessment Engine</span>
                 </div>
             </div>
 
@@ -84,6 +84,7 @@ const SidebarContent = () => {
                                 ? "bg-blue-50 text-blue-600 border border-blue-100/50"
                                 : "text-gray-400 hover:text-slate-900 hover:bg-gray-50"
                         )}
+                        aria-label={`Navigate to ${item.label}`}
                     >
                         <item.icon className="w-5 h-5" />
                         <span className="font-black text-[11px] uppercase tracking-widest hidden lg:block">{item.label}</span>
@@ -95,6 +96,7 @@ const SidebarContent = () => {
                 <button
                     onClick={() => { logout(); router.push('/'); }}
                     className="w-full flex items-center space-x-4 px-4 py-4 rounded-2xl text-red-500 hover:bg-red-50 transition-all group"
+                    aria-label="Log out of your account"
                 >
                     <LogOut className="w-5 h-5" />
                     <span className="font-black text-[11px] uppercase tracking-widest hidden lg:block">Log Out</span>

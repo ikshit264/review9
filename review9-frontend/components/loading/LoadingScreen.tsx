@@ -54,14 +54,9 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
                         initial={{ scale: 0.8, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
                         transition={{ delay: 0.1 }}
-                        className="absolute top-8 left-1/2 -translate-x-1/2 inset-0 flex items-center gap-3"
+                        className="absolute top-8 left-1/2 -translate-x-1/2 flex items-center justify-center w-full max-w-[200px]"
                     >
-                        <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center shadow-2xl shadow-blue-500/30 animate-pulse">
-                            <Zap className="w-7 h-7 text-white fill-current" />
-                        </div>
-                        <span className="text-2xl font-bold tracking-tight text-white drop-shadow-lg">
-                            Hire<span className="italic text-blue-300">AI</span>
-                        </span>
+                        <img src="/logo-full.png" alt="IntervAI Logo" className="w-full h-auto object-contain drop-shadow-2xl" />
                     </motion.div>
                 )}
 

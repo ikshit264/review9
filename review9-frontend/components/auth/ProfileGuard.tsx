@@ -22,7 +22,7 @@ function ProfileGuardContent({ children }: { children: React.ReactNode }) {
         // Don't redirect while loading (unless we have a user in store)
         if (isLoadingProfile && !storeUser) return;
 
-        const publicPaths = ['/', '/login', '/register', '/interview/demo', '/interview/test-me', '/interview/test-me-free', '/interview/test-me-pro', '/interview/test-me-ultra'];
+        const publicPaths = ['/', '/login', '/register', '/interview/demo', '/interview/test-me', '/interview/test-me-free', '/interview/test-me-pro', '/interview/test-me-ultra', '/terms', '/privacy'];
         const isPublicPage = publicPaths.some(path =>
             path === '/' ? pathname === '/' : pathname.startsWith(path)
         );

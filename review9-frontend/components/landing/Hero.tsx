@@ -29,6 +29,7 @@ export const Hero = () => {
                     <button
                         onClick={() => router.push('/register')}
                         className="group px-8 py-4 bg-blue-600 text-white rounded-full font-bold text-lg flex items-center gap-2 hover:bg-slate-900 transition-all active:scale-95 shadow-xl shadow-blue-500/20"
+                        aria-label="Start hiring with IntervAI"
                     >
                         Start Hiring
                         <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
@@ -36,6 +37,7 @@ export const Hero = () => {
                     <button
                         onClick={() => router.push('/interview/demo')}
                         className="px-8 py-4 bg-white border border-slate-200 text-slate-700 rounded-full font-bold text-lg flex items-center gap-2 hover:border-slate-400 transition-all active:scale-95"
+                        aria-label="Try the IntervAI demo"
                     >
                         <Play className="fill-current w-5 h-5" />
                         Try Demo

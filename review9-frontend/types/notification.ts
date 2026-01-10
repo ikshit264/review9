@@ -4,7 +4,7 @@ export enum NotificationType {
     SYSTEM = 'SYSTEM'
 }
 
-export interface HireAINotification {
+export interface IntervAINotification {
     id: string;
     type: NotificationType;
     title: string;

@@ -12,6 +12,7 @@ import {
 import { BulkMailDto } from './dto/bulk-mail.dto';
 import { NotificationType } from '@prisma/client';
 import { EmailService } from '../email/email.service';
+import { getProfessionalEmailLayout } from '../common/email.templates';
 
 @Injectable()
 export class NotificationsService {
@@ -55,11 +56,13 @@ export class NotificationsService {
         email,
         dto.title,
         dto.message,
-        `<div style="font-family: Arial, sans-serif;">
-                    <h2>${dto.title}</h2>
-                    <p>${dto.message}</p>
-                    ${dto.link ? `<a href="${dto.link}" style="background: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block; margin-top: 10px;">View Details</a>` : ''}
-                </div>`,
+        getProfessionalEmailLayout({
+          title: dto.title,
+          message: dto.message,
+          buttonText: dto.link ? 'View Details' : undefined,
+          buttonLink: dto.link,
+          footerText: 'You received this notification from your IntervAI account.'
+        }),
       );
     }
 
@@ -265,64 +268,19 @@ export class NotificationsService {
     const appUrl = process.env.APP_URL || process.env.FRONTEND_URL || 'http://localhost:3000';
     const testInterviewLink = `${appUrl}/interview/test-me`;
 
-    const htmlContent = `
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <style>
-                    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-                    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-                    .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 10px 10px 0 0; }
-                    .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-                    .button { display: inline-block; background: #667eea; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; font-weight: bold; }
-                    .note { background: #fff3cd; padding: 15px; border-radius: 5px; margin-top: 20px; border-left: 4px solid #ffc107; }
-                    .badge { display: inline-block; background: #28a745; color: white; padding: 5px 10px; border-radius: 3px; font-size: 12px; font-weight: bold; }
-                </style>
-            </head>
-            <body>
-                <div class="container">
-                    <div class="header">
-                        <h1>🎯 Test Interview Invitation</h1>
-                        <p>AI-Powered Interview Platform - FREE Plan</p>
-                    </div>
-                    <div class="content">
-                        <p>Hello,</p>
-                        <p>This is a <strong>test interview invitation</strong> from the IntervAI platform.</p>
-                        
-                        <p><span class="badge">FREE PLAN</span></p>
-                        
-                        <p><strong>Position:</strong> Full Stack Developer (Test)</p>
-                        <p><strong>Company:</strong> IntervAI Demo</p>
-                        <p><strong>Duration:</strong> 25 minutes</p>
-                        
-                        <a href="${testInterviewLink}" class="button">🚀 Start Test Interview</a>
-                        
-                        <p><strong>What to expect:</strong></p>
-                        <ul>
-                            <li>AI-powered technical interview</li>
-                            <li>Real-time conversation with AI interviewer</li>
-                            <li>Automatic evaluation and scoring</li>
-                            <li>No signup required for testing</li>
-                        </ul>
-                        
-                        <div class="note">
-                            <strong>📝 Note:</strong> This is a test environment. You can try the interview process without any real consequences. The FREE plan includes basic proctoring and a 25-minute interview duration.
-                        </div>
-                        
-                        <p style="margin-top: 30px;">
-                            <strong>Interview Link:</strong><br>
-                            <a href="${testInterviewLink}">${testInterviewLink}</a>
-                        </p>
-                        
-                        <p style="margin-top: 30px; color: #666; font-size: 14px;">
-                            Best of luck!<br>
-                            The IntervAI Team
-                        </p>
-                    </div>
-                </div>
-            </body>
-            </html>
-        `;
+    const htmlContent = getProfessionalEmailLayout({
+      title: 'Test Interview Invitation',
+      message: 'This is a **test interview invitation** from the IntervAI platform. You can use this to experience our AI-powered interview environment firsthand. No signup is required for this test.',
+      details: [
+        { label: 'Position', value: 'Full Stack Developer (Test)' },
+        { label: 'Company', value: 'IntervAI Demo' },
+        { label: 'Duration', value: '25 minutes' },
+        { label: 'Plan', value: 'FREE' }
+      ],
+      buttonText: '🚀 Start Test Interview',
+      buttonLink: testInterviewLink,
+      footerText: 'Note: This is a test environment. Data collected here is for demonstration purposes only.'
+    });
 
     const textContent = `
 Test Interview Invitation - IntervAI Platform
