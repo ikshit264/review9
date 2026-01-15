@@ -18,7 +18,8 @@ export default function BillingPage() {
 
     useEffect(() => {
         if (!user) {
-            router.push('/login');
+            const nextPath = encodeURIComponent(window.location.pathname + window.location.search);
+            router.push(`/login?next=${nextPath}`);
             return;
         }
 

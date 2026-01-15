@@ -29,7 +29,8 @@ function ProfileGuardContent({ children }: { children: React.ReactNode }) {
 
         // Redirect to login if not authenticated and not on public page
         if (!currentUser && !isPublicPage) {
-            router.push(`/login${queryString}`);
+            const nextPath = encodeURIComponent(pathname + queryString);
+            router.push(`/login?next=${nextPath}`);
             return;
         }
 

@@ -84,7 +84,7 @@ export default function CompanyPublicProfile() {
         <div className="flex space-x-4">
           <Button variant="ghost" onClick={() => router.push('/scheduled')}>My Interviews</Button>
           {!user ? (
-            <Button onClick={() => router.push('/login')}>Sign In</Button>
+            <Button onClick={() => router.push(`/login?next=${encodeURIComponent(window.location.pathname)}`)}>Sign In</Button>
           ) : (
             <Button onClick={() => router.push('/dashboard')}>Dashboard</Button>
           )}

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button, Card, Input } from '@/components/UI';
@@ -23,7 +23,9 @@ export default function LoginPage() {
 
   const { setUser } = useStore();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
+  const nextTarget = searchParams.get('next');
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,7 +49,9 @@ export default function LoginPage() {
 
       queryClient.invalidateQueries({ queryKey: ['user', 'profile'] });
 
-      if (userRole === 'ADMIN') {
+      if (nextTarget) {
+        router.push(nextTarget);
+      } else if (userRole === 'ADMIN') {
         router.push('/admin');
       } else {
         router.push('/dashboard');
@@ -233,7 +237,7 @@ export default function LoginPage() {
             <div className="mt-12 pt-8 border-t border-slate-50 flex flex-col items-center gap-4">
               <p className="text-slate-500 text-sm font-medium">
                 New to the platform?{' '}
-                <a href="/register" className="text-blue-600 font-bold hover:text-slate-900 transition-colors">
+                <a href={`/register${nextTarget ? `?next=${nextTarget}` : ''}`} className="text-blue-600 font-bold hover:text-slate-900 transition-colors">
                   Create an account
                 </a>
               </p>

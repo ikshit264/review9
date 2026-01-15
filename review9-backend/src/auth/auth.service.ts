@@ -45,26 +45,30 @@ export class AuthService {
         name: dto.name,
         role: dto.role,
         plan: dto.role === 'COMPANY' ? 'FREE' : null,
-        approvalStatus:
-          dto.role === 'COMPANY'
-            ? ApprovalStatus.PENDING
-            : ApprovalStatus.APPROVED,
+        approvalStatus: ApprovalStatus.APPROVED,
         isEmailVerified: false,
-        verificationToken: dto.role === 'CANDIDATE' ? token : null,
-        verificationTokenExpires: dto.role === 'CANDIDATE' ? expires : null,
+        verificationToken: token,
+        verificationTokenExpires: expires,
       },
     });
 
-    if (dto.role === 'CANDIDATE') {
-      const appUrl =
-        this.configService.get<string>('FRONTEND_URL') ||
-        'http://localhost:3000';
-      const verificationLink = `${appUrl}/verify?token=${token}`;
+    const appUrl =
+      this.configService.get<string>('FRONTEND_URL') ||
+      'http://localhost:3000';
+    const verificationLink = `${appUrl}/verify?token=${token}`;
 
+    if (dto.role === 'CANDIDATE') {
       await this.notificationsService.createForEmail(user.email, {
         type: 'EMAIL',
         title: 'Verify Your IntervAI Account',
         message: `Welcome to IntervAI! Please click the link below to verify your email and complete your registration.`,
+        link: verificationLink,
+      });
+    } else if (dto.role === 'COMPANY') {
+      await this.notificationsService.createForEmail(user.email, {
+        type: 'EMAIL',
+        title: 'Verify Your IntervAI Company Account',
+        message: `Your IntervAI company account has been approved. Please click the link below to verify your email and activate your account.`,
         link: verificationLink,
       });
     }

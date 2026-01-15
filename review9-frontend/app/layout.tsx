@@ -4,6 +4,8 @@ import { Providers } from './providers';
 import { ToastProvider } from '@/components/ToastProvider';
 import ProfileGuard from '@/components/auth/ProfileGuard';
 import { UtcClock } from '@/components/UtcClock';
+import { OrganizationJsonLd, FAQJsonLd } from '@/components/SEO/JsonLd';
+import { MobileRestriction } from '@/components/MobileRestriction';
 
 const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://inverv.entrext.in';
 
@@ -65,8 +67,6 @@ export const metadata: Metadata = {
   manifest: `${baseUrl}/manifest.json`,
 };
 
-import { OrganizationJsonLd, FAQJsonLd } from '@/components/SEO/JsonLd';
-
 export default function RootLayout({
   children,
 }: {
@@ -78,9 +78,11 @@ export default function RootLayout({
         <OrganizationJsonLd />
         <FAQJsonLd />
         <Providers>
-          <ProfileGuard>
-            {children}
-          </ProfileGuard>
+          <MobileRestriction>
+            <ProfileGuard>
+              {children}
+            </ProfileGuard>
+          </MobileRestriction>
           <ToastProvider />
           <UtcClock />
         </Providers>

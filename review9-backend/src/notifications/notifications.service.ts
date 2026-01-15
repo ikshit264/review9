@@ -274,8 +274,7 @@ export class NotificationsService {
       details: [
         { label: 'Position', value: 'Full Stack Developer (Test)' },
         { label: 'Company', value: 'IntervAI Demo' },
-        { label: 'Duration', value: '25 minutes' },
-        { label: 'Plan', value: 'FREE' }
+        { label: 'Duration', value: '25 minutes' }
       ],
       buttonText: '🚀 Start Test Interview',
       buttonLink: testInterviewLink,
@@ -287,7 +286,7 @@ Test Interview Invitation - IntervAI Platform
 
 Position: Full Stack Developer (Test)
 Company: IntervAI Demo
-Plan: FREE (25 minutes)
+Duration: 25 minutes
 
 Start your test interview here:
 ${testInterviewLink}
@@ -301,7 +300,7 @@ The IntervAI Team
     try {
       const emailSent = await this.emailService.sendMail(
         email,
-        '🎯 Test Interview Invitation - IntervAI Platform (FREE Plan)',
+        '🎯 Test Interview Invitation - IntervAI Platform',
         textContent,
         htmlContent,
       );

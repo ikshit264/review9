@@ -7,11 +7,13 @@ import { useInfiniteNotifications } from '@/hooks/api/useInfiniteNotifications';
 import { formatDistanceToNow } from 'date-fns';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { HireAINotification as Notification } from '@/types';
+import { IntervAINotification as Notification } from '@/types';
 import { useVirtualizer } from '@tanstack/react-virtual';
+import { createPortal } from 'react-dom';
 
 export const NotificationDropdown = () => {
     const [isOpen, setIsOpen] = useState(false);
+    const [mounted, setMounted] = useState(false);
     const {
         notifications,
         unreadCount,
@@ -25,6 +27,10 @@ export const NotificationDropdown = () => {
     } = useInfiniteNotifications();
     const router = useRouter();
     const parentRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
 
     const rowVirtualizer = useVirtualizer({
         count: notifications.length,
@@ -65,13 +71,13 @@ export const NotificationDropdown = () => {
                 )}
             </button>
 
-            {isOpen && (
+            {isOpen && mounted && createPortal(
                 <>
                     <div
-                        className="fixed inset-0 z-[9998] bg-slate-900/60 backdrop-blur-xl animate-in fade-in duration-500"
+                        className="fixed inset-0 z-[10000] bg-slate-900/40 backdrop-blur-md animate-in fade-in duration-500"
                         onClick={() => setIsOpen(false)}
                     />
-                    <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[420px] max-w-[95vw] bg-white rounded-[2.5rem] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.5)] border border-gray-100 z-[10000] overflow-hidden animate-in fade-in zoom-in-95 duration-300">
+                    <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[420px] max-w-[95vw] bg-white rounded-[2.5rem] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.5)] border border-gray-100 z-[10001] overflow-hidden animate-in fade-in zoom-in-95 duration-300">
                         <div className="p-6 border-b border-gray-50 flex items-center justify-between bg-gray-50/10">
                             <div className="flex items-center space-x-3">
                                 <div className="p-2.5 bg-blue-50 rounded-xl border border-blue-100">
@@ -194,7 +200,8 @@ export const NotificationDropdown = () => {
                             </button>
                         </div>
                     </div>
-                </>
+                </>,
+                document.body
             )}
         </div>
     );

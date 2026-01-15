@@ -15,7 +15,7 @@ export interface IntervAINotification {
 }
 
 export interface NotificationPage {
-    notifications: HireAINotification[];
+    notifications: IntervAINotification[];
     unreadCount: number;
     nextCursor: string | null;
     hasMore: boolean;
