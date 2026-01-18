@@ -13,9 +13,20 @@ export const MobileRestriction = ({ children }: { children: React.ReactNode }) =
         const checkMobile = () => {
             const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
             const isMobileDevice = /android|iphone|kindle|ipad|playbook|silk/i.test(userAgent.toLowerCase());
-            const isSmallScreen = window.innerWidth < 1024; // Tailwind's lg breakpoint
 
-            setIsMobile(isMobileDevice || isSmallScreen);
+            const searchParams = new URLSearchParams(window.location.search);
+            const hasBypassParam = searchParams.get('bypassMobile') === 'true';
+            const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+            const isTestingMobile = searchParams.get('testMobile') === 'true';
+
+            // Bypass if on localhost (unless testing) or if bypass param is present
+            if ((isLocalhost && !isTestingMobile) || hasBypassParam) {
+                setIsMobile(false);
+            } else {
+                // Only block actual mobile devices, not just small windows on desktop
+                setIsMobile(isMobileDevice);
+            }
+
             setChecking(false);
         };
 

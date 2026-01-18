@@ -173,10 +173,15 @@ export const useInterview = (
   }, [startListening, stopSpeaking]);
 
   const handleUserAnswer = useCallback(async (answer: string) => {
-    if (!sessionId) return;
+    if (!sessionId || !answer.trim()) return;
     if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
 
+    // Stop listening immediately
+    setIsUserTurn(false);
     setSystemStateWithRef('PROCESSING');
+
+    // Clear transcript references to avoid stale data in next turn
+    finalTranscriptRef.current = "";
     setCandidateInterimText("");
 
     const userMsg = { id: Date.now().toString(), role: 'user' as const, text: answer, timestamp: new Date() };
@@ -234,10 +239,7 @@ export const useInterview = (
       setError("Network issue. Please continue.");
       setSystemStateWithRef('IDLE');
     }
-
-    // End user's turn after submission
-    setIsUserTurn(false);
-  }, [sessionId, user?.plan, questions, saveTranscriptMutation, completeInterviewMutation, speak, chat.length, settings]);
+  }, [sessionId, user?.plan, questions, saveTranscriptMutation, completeInterviewMutation, speak, settings]);
 
   const acknowledgeWarning = useCallback(async () => {
     if (!sessionId) return;
@@ -255,6 +257,16 @@ export const useInterview = (
     }
   }, [sessionId, startListening]);
 
+  const handleUserAnswerRef = useRef(handleUserAnswer);
+  useEffect(() => {
+    handleUserAnswerRef.current = handleUserAnswer;
+  }, [handleUserAnswer]);
+
+  const setCandidateInterimTextRef = useRef(setCandidateInterimText);
+  useEffect(() => {
+    setCandidateInterimTextRef.current = setCandidateInterimText;
+  }, [setCandidateInterimText]);
+
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
@@ -271,7 +283,7 @@ export const useInterview = (
     const recognition = new SpeechRecognitionConstructor() as SpeechRecognition;
     recognition.continuous = true;
     recognition.interimResults = true;
-    recognition.lang = APP_CONFIG.SPEECH.lang;
+    recognition.lang = APP_CONFIG.SPEECH.lang || 'en-US';
     recognition.maxAlternatives = 1;
 
     recognition.onstart = () => {
@@ -302,14 +314,14 @@ export const useInterview = (
 
       const fullVisibleText = (finalTranscriptRef.current + " " + interim).trim();
 
-      if (!isPaused) {
-        setCandidateInterimText(prev => prev !== fullVisibleText ? fullVisibleText : prev);
+      if (!isPausedRef.current) {
+        setCandidateInterimTextRef.current(fullVisibleText);
 
-        // Auto-submit logic after silence
+        // Auto-submit logic after silence (Debounced)
         if (isUserTurnRef.current && fullVisibleText.split(/\s+/).length >= (APP_CONFIG.SPEECH.minAutoSubmitLength || 5)) {
           silenceTimerRef.current = setTimeout(() => {
             if (isUserTurnRef.current && systemStateRef.current === 'LISTENING') {
-              handleUserAnswer(finalTranscriptRef.current + " " + interim);
+              handleUserAnswerRef.current(fullVisibleText);
             }
           }, APP_CONFIG.SPEECH.silenceTimeout || 4000);
         }
@@ -318,35 +330,48 @@ export const useInterview = (
 
     recognition.onend = () => {
       // Robust restart: only if still user's turn and not processing/speaking
-      if (isUserTurnRef.current && systemStateRef.current === 'LISTENING' && !isPaused) {
+      const shouldBeListening = isUserTurnRef.current &&
+        !isPausedRef.current &&
+        systemStateRef.current !== 'PROCESSING' &&
+        systemStateRef.current !== 'SPEAKING';
+
+      if (shouldBeListening) {
+        setSystemStateWithRef('IDLE'); // Reset to allow onstart to trigger LISTENING again
         try {
           recognition.start();
         } catch (e) {
-          // If start fails, retry after a short delay
+          // If start fails (already running or audio error), retry after a short delay
           setTimeout(() => {
-            if (isUserTurnRef.current && systemStateRef.current === 'LISTENING') {
+            if (isUserTurnRef.current && !isPausedRef.current && systemStateRef.current === 'IDLE') {
               try { recognition.start(); } catch (err) { }
             }
-          }, 300);
+          }, 500);
         }
+      } else if (systemStateRef.current === 'LISTENING') {
+        setSystemStateWithRef('IDLE');
       }
     };
 
     recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
       console.error("[STT] Error:", event.error);
       if (event.error === 'no-speech') return;
-      // Don't change system state here, let onend handle it
+      if (event.error === 'not-allowed') {
+        setError("Microphone permission denied. Please enable mic access.");
+      }
     };
 
     recognitionRef.current = recognition;
 
     return () => {
       if (recognitionRef.current) {
+        recognitionRef.current.onstart = null;
+        recognitionRef.current.onresult = null;
         recognitionRef.current.onend = null;
-        recognitionRef.current.stop();
+        recognitionRef.current.onerror = null;
+        try { recognitionRef.current.stop(); } catch (e) { }
       }
     };
-  }, []); // Remove handleUserAnswer dependency to avoid unnecessary resets
+  }, []);
 
   const handleMalpractice = useCallback(async (reason: string, type: 'tab_switch' | 'eye_tracking' | 'face_detection') => {
     // Cooldown logic to prevent duplicate rapid-fire alerts (e.g. blur + visibilitychange + fullscreenexit)
@@ -499,7 +524,7 @@ export const useInterview = (
         // This debugger statement will pause execution if DevTools is open
         debugger;
         const end = performance.now();
-        
+
         // If DevTools is open, the time difference will be significant
         if (end - start > 100) {
           handleMalpractice('Developer tools detected. Please close them to continue.', 'tab_switch');

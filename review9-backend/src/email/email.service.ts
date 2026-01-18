@@ -1,41 +1,32 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as nodemailer from 'nodemailer';
-import { Transporter } from 'nodemailer';
+import * as SibApiV3Sdk from 'sib-api-v3-sdk';
 
 @Injectable()
 export class EmailService {
-  private transporter: Transporter;
+  private apiInstance: SibApiV3Sdk.TransactionalEmailsApi;
   private readonly logger = new Logger(EmailService.name);
 
   constructor(private configService: ConfigService) {
-    this.initializeTransporter();
+    this.initializeBrevo();
   }
 
-  private initializeTransporter() {
-    const host = this.configService.get<string>('MAIL_HOST');
-    const port = this.configService.get<number>('MAIL_PORT');
-    const user = this.configService.get<string>('MAIL_USER');
-    const password = this.configService.get<string>('MAIL_PASSWORD');
+  private initializeBrevo() {
+    const apiKey = this.configService.get<string>('BREVO_API_KEY');
 
-    if (!host || !port || !user || !password) {
+    if (!apiKey) {
       this.logger.warn(
-        'SMTP configuration incomplete. Email service disabled.',
+        '[EmailService] BREVO_API_KEY not found. Email service disabled.',
       );
       return;
     }
 
-    this.transporter = nodemailer.createTransport({
-      host,
-      port,
-      secure: port === 465,
-      auth: {
-        user,
-        pass: password,
-      },
-    });
+    const defaultClient = SibApiV3Sdk.ApiClient.instance;
+    const apiKeyAuth = defaultClient.authentications['api-key'];
+    apiKeyAuth.apiKey = apiKey;
 
-    this.logger.log('SMTP transport initialized successfully');
+    this.apiInstance = new SibApiV3Sdk.TransactionalEmailsApi();
+    this.logger.log('[EmailService] Brevo service initialized successfully');
   }
 
   async sendMail(
@@ -44,28 +35,35 @@ export class EmailService {
     text: string,
     html?: string,
   ): Promise<boolean> {
-    if (!this.transporter) {
-      this.logger.error('Email transport not initialized. Cannot send email.');
+    this.logger.log(`[EmailService] sendMail called for: ${to}`);
+
+    if (!this.apiInstance) {
+      this.logger.error('[EmailService] Brevo not initialized. Cannot send email.');
       return false;
     }
 
-    const from =
-      this.configService.get<string>('MAIL_FROM') ||
-      this.configService.get<string>('MAIL_USER');
+    const fromEmail = this.configService.get<string>('MAIL_FROM') || 'onboarding@resend.dev';
+    const fromName = this.configService.get<string>('MAIL_FROM_NAME') || 'IntervAI';
 
     try {
-      const info = await this.transporter.sendMail({
-        from,
-        to,
-        subject,
-        text,
-        html: html || text,
-      });
+      this.logger.log(`[EmailService] Sending email via Brevo to ${to}...`);
 
-      this.logger.log(`Email sent successfully to ${to}: ${info.messageId}`);
+      const sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail();
+      sendSmtpEmail.subject = subject;
+      sendSmtpEmail.htmlContent = html || text;
+      sendSmtpEmail.textContent = text;
+      sendSmtpEmail.sender = { name: fromName, email: fromEmail };
+      sendSmtpEmail.to = [{ email: to }];
+
+      const data = await this.apiInstance.sendTransacEmail(sendSmtpEmail);
+
+      this.logger.log(`[EmailService] Email sent successfully via Brevo. Message ID: ${data.messageId}`);
       return true;
-    } catch (error) {
-      this.logger.error(`Failed to send email to ${to}:`, error.message);
+    } catch (error: any) {
+      this.logger.error(`[EmailService] Brevo Error while sending to ${to}: ${error.message || error}`);
+      if (error.response && error.response.body) {
+        this.logger.error(`[EmailService] Brevo Error details: ${JSON.stringify(error.response.body)}`);
+      }
       return false;
     }
   }
