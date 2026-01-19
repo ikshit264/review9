@@ -39,7 +39,8 @@ export const useInterview = (
   onProctoring?: (type: string, severity: string) => void,
   onTimeUp?: () => void,
   sessionId?: string,
-  jobSettings?: JobPosting
+  jobSettings?: JobPosting,
+  isMicEnabled: boolean = true
 ) => {
   const [interviewStarted, setInterviewStarted] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -114,16 +115,36 @@ export const useInterview = (
     }
   }, []);
 
+  const primeSTT = useCallback(() => {
+    if (!recognitionRef.current) return;
+    try {
+      // Start and immediately stop to "prime" the browser's speech context
+      recognitionRef.current.start();
+      setTimeout(() => {
+        if (systemStateRef.current === 'LISTENING') {
+          recognitionRef.current?.stop();
+        }
+      }, 100);
+    } catch (err) {
+      console.log("[STT] Priming skipped or already active");
+    }
+  }, []);
+
   const startListening = useCallback(() => {
-    if (!recognitionRef.current || !interviewStarted || isPaused || !isUserTurnRef.current) return;
+    if (!recognitionRef.current || !interviewStarted || isPaused || !isUserTurnRef.current || !isMicEnabled) return;
     if (systemStateRef.current === 'PROCESSING' || systemStateRef.current === 'SPEAKING') return;
 
-    try {
-      recognitionRef.current.start();
-    } catch (e) {
-      // console.warn("[STT] Already running or resetting...");
-    }
-  }, [interviewStarted, isPaused]);
+    // Small timeout for Chrome to ensure previous session is fully aborted/ended
+    setTimeout(() => {
+      try {
+        console.log("[STT] Attempting to start recognition...");
+        recognitionRef.current?.start();
+      } catch (e) {
+        // If already running, we're good. If not, retry once
+        console.log("[STT] Start failed (likely already running or transitioning)");
+      }
+    }, 200);
+  }, [interviewStarted, isPaused, isMicEnabled]);
 
   const speak = useCallback((text: string, onEnd?: () => void) => {
     if (!synthesisRef.current) return;
@@ -287,6 +308,7 @@ export const useInterview = (
     recognition.maxAlternatives = 1;
 
     recognition.onstart = () => {
+      console.log("[STT] Session started");
       setSystemStateWithRef('LISTENING');
     };
 
@@ -310,6 +332,7 @@ export const useInterview = (
 
       if (final) {
         finalTranscriptRef.current += (finalTranscriptRef.current ? " " : "") + final.trim();
+        console.log("[STT] Final transcript updated:", finalTranscriptRef.current);
       }
 
       const fullVisibleText = (finalTranscriptRef.current + " " + interim).trim();
@@ -321,6 +344,7 @@ export const useInterview = (
         if (isUserTurnRef.current && fullVisibleText.split(/\s+/).length >= (APP_CONFIG.SPEECH.minAutoSubmitLength || 5)) {
           silenceTimerRef.current = setTimeout(() => {
             if (isUserTurnRef.current && systemStateRef.current === 'LISTENING') {
+              console.log("[STT] Auto-submitting due to silence");
               handleUserAnswerRef.current(fullVisibleText);
             }
           }, APP_CONFIG.SPEECH.silenceTimeout || 4000);
@@ -329,20 +353,21 @@ export const useInterview = (
     };
 
     recognition.onend = () => {
-      // Robust restart: only if still user's turn and not processing/speaking
+      console.log("[STT] Session ended. Turn:", isUserTurnRef.current, "State:", systemStateRef.current);
+
       const shouldBeListening = isUserTurnRef.current &&
         !isPausedRef.current &&
         systemStateRef.current !== 'PROCESSING' &&
         systemStateRef.current !== 'SPEAKING';
 
       if (shouldBeListening) {
-        setSystemStateWithRef('IDLE'); // Reset to allow onstart to trigger LISTENING again
+        // Only restart if we're supposed to be listening
         try {
           recognition.start();
         } catch (e) {
           // If start fails (already running or audio error), retry after a short delay
           setTimeout(() => {
-            if (isUserTurnRef.current && !isPausedRef.current && systemStateRef.current === 'IDLE') {
+            if (isUserTurnRef.current && !isPausedRef.current && systemStateRef.current !== 'LISTENING') {
               try { recognition.start(); } catch (err) { }
             }
           }, 500);
@@ -353,10 +378,25 @@ export const useInterview = (
     };
 
     recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-      console.error("[STT] Error:", event.error);
-      if (event.error === 'no-speech') return;
-      if (event.error === 'not-allowed') {
-        setError("Microphone permission denied. Please enable mic access.");
+      console.error("[STT] Error encountered:", event.error);
+
+      switch (event.error) {
+        case 'not-allowed':
+        case 'service-not-allowed':
+          setError("Microphone permission denied for Speech API. Please check your browser settings.");
+          break;
+        case 'network':
+          setError("Network issue with Speech Recognition. Retrying...");
+          break;
+        case 'no-speech':
+          // Standard timeout, onend will handle restart
+          break;
+        case 'aborted':
+          console.log("[STT] Recognition aborted.");
+          break;
+        default:
+          // For other errors, we might want to notify or just let it restart
+          break;
       }
     };
 
@@ -368,7 +408,9 @@ export const useInterview = (
         recognitionRef.current.onresult = null;
         recognitionRef.current.onend = null;
         recognitionRef.current.onerror = null;
-        try { recognitionRef.current.stop(); } catch (e) { }
+        try {
+          recognitionRef.current.abort();
+        } catch (e) { }
       }
     };
   }, []);
@@ -581,6 +623,7 @@ export const useInterview = (
 
     setInterviewStarted(true);
     setIsPaused(false);
+    primeSTT();
 
     const plan = settings?.planAtCreation || user?.plan || SubscriptionPlan.FREE;
     setTimeLeft(plan === SubscriptionPlan.FREE ? 25 * 60 : 45 * 60);
@@ -594,18 +637,26 @@ export const useInterview = (
     }
   };
 
-  // Trigger STT when turn starts
+  // Trigger STT when turn starts or mic is toggled
   useEffect(() => {
-    if (isUserTurn && !isPaused) {
-      finalTranscriptRef.current = "";
-      setCandidateInterimText("");
-      startListening();
+    if (isUserTurn && !isPaused && isMicEnabled) {
+      // Small delay to ensure any previous abort has resolved
+      const timer = setTimeout(() => {
+        finalTranscriptRef.current = "";
+        setCandidateInterimText("");
+        startListening();
+      }, 300);
+      return () => clearTimeout(timer);
     } else {
       if (recognitionRef.current) {
-        recognitionRef.current.stop();
+        console.log("[STT] Stopping/Aborting (Turn:", isUserTurn, "Paused:", isPaused, "MicEnabled:", isMicEnabled, ")");
+        try {
+          // Abort is better than stop for immediate turn switching
+          recognitionRef.current.abort();
+        } catch (e) { }
       }
     }
-  }, [isUserTurn, isPaused, startListening]);
+  }, [isUserTurn, isPaused, isMicEnabled, startListening]);
 
   return {
     interviewStarted,

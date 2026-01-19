@@ -146,7 +146,7 @@ export default function InterviewPage() {
     acknowledgeWarning,
     handleMalpractice,
     clearError
-  } = useInterview(user, resumeText, handleAnswer, handleProctoring, () => finalizeSession('time_up'), sessionId || undefined, interviewInfo?.job);
+  } = useInterview(user, resumeText, handleAnswer, handleProctoring, () => finalizeSession('time_up'), sessionId || undefined, interviewInfo?.job, isMicOn);
 
   const videoRef = useRef<HTMLVideoElement>(null);
 

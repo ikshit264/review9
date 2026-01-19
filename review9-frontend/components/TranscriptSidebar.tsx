@@ -127,42 +127,51 @@ export const TranscriptSidebar: React.FC<TranscriptSidebarProps> = ({
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
-                if (interimText.trim().length >= 2 && !isSTTProcessing && !isAnalyzing && !noTextTyping) {
+                if (interimText.trim().length >= 2 && !isSTTProcessing && !isAnalyzing) {
                   onSubmit(interimText.trim());
                 }
               }
             }}
-            placeholder={noTextTyping ? "Typing is disabled for this interview." : isMicActive ? "Speaking... (or type here)" : "Wait for your turn..."}
-            disabled={!isMicActive || isAnalyzing || noTextTyping}
-            className="w-full bg-black/20 border border-white/10 rounded-2xl px-4 py-3 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-blue-500/50 resize-none min-h-[80px] transition-all disabled:opacity-50"
+            placeholder={
+              isAnalyzing ? "AI is processing your answer..." :
+                isAITalking ? "Wait for AI to finish speaking..." :
+                  noTextTyping ? "Please answer verbally." :
+                    isMicActive ? "Transcript will appear here as you speak..." :
+                      "Wait for your turn..."
+            }
+            readOnly={true} // Non-editable as requested
+            className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-blue-500/50 resize-none min-h-[100px] transition-all"
           />
 
-          <div className="absolute bottom-3 right-3 flex items-center space-x-2">
+          <div className="absolute bottom-4 right-4 flex items-center space-x-3">
             {isSTTProcessing && (
-              <div className="flex space-x-1 mr-2">
-                <div className="w-1 h-1 bg-blue-400 rounded-full animate-bounce"></div>
-                <div className="w-1 h-1 bg-blue-400 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
-                <div className="w-1 h-1 bg-blue-400 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+              <div className="flex space-x-1.5 mr-2">
+                <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce"></div>
+                <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
               </div>
             )}
             <button
               onClick={() => onSubmit(interimText.trim())}
               disabled={interimText.trim().length < 2 || isSTTProcessing || isAnalyzing || !isMicActive}
-              className={`p-2 rounded-xl transition-all ${interimText.trim().length >= 2 && !isSTTProcessing && !isAnalyzing && isMicActive
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20 hover:scale-105'
-                : 'bg-white/5 text-gray-600'
+              className={`p-3 rounded-2xl transition-all ${interimText.trim().length >= 2 && !isSTTProcessing && !isAnalyzing && isMicActive
+                ? 'bg-blue-600 text-white shadow-xl shadow-blue-500/30 hover:scale-105 active:scale-95'
+                : 'bg-white/5 text-gray-600 cursor-not-allowed'
                 }`}
+              title="Send response to AI"
             >
               {isAnalyzing ? (
-                <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" /></svg>
+                <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" /></svg>
               ) : (
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
               )}
             </button>
           </div>
         </div>
-        <p className="mt-2 text-[9px] font-bold text-gray-600 uppercase tracking-widest text-center">
-          {noTextTyping ? "Please answer verbally only" : isSTTProcessing ? "Wait for speech to finish..." : "Press Enter to send"}
+        <p className="mt-3 text-[10px] font-black text-gray-500 uppercase tracking-widest text-center flex items-center justify-center space-x-2">
+          {isAnalyzing ? <span>Analyzing Response</span> :
+            isMicActive ? <><div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div><span>Microphone Active - Speak Now</span></> :
+              <span>Microphone Restricted</span>}
         </p>
       </div>
     </div>
