@@ -47,7 +47,14 @@ async function apiRequest<T>(
 
     if (!response.ok) {
         const error = await response.json().catch(() => ({ message: 'Request failed' }));
-        throw new Error(error.message || `HTTP error! status: ${response.status}`);
+        let message = error.message || `HTTP error! status: ${response.status}`;
+
+        // Handle NestJS validation errors which are often arrays
+        if (Array.isArray(message)) {
+            message = message.join(', ');
+        }
+
+        throw new Error(message);
     }
 
     return response.json();

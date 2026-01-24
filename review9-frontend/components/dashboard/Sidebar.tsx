@@ -7,7 +7,8 @@ import {
     User as UserIcon,
     LayoutDashboard,
     BrainCircuit,
-    CreditCard
+    CreditCard,
+    BookOpen
 } from 'lucide-react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/api/useAuth';
@@ -57,7 +58,13 @@ const SidebarContent = () => {
                 icon: CreditCard,
                 path: companyId && user.role === 'ADMIN' ? `/billing?companyId=${companyId}` : '/billing',
                 active: pathname === '/billing'
-            }
+            },
+            {
+                label: 'User Guide',
+                icon: BookOpen,
+                path: '/intro',
+                active: pathname === '/intro'
+            },
         ] : []),
     ];
 

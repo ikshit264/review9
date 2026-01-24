@@ -34,4 +34,5 @@ export interface JobPosting {
     candidates?: Candidate[];
     candidateCount?: number;
     sessionCount?: number;
+    notifyCandidates?: boolean;
 }

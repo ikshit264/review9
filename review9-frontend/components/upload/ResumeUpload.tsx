@@ -3,6 +3,7 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { Upload, FileText, X, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useStore } from '@/store/useStore';
 
 interface ResumeUploadProps {
     onUploadSuccess: (resumeUrl: string) => void;
@@ -18,7 +19,15 @@ export function ResumeUpload({ onUploadSuccess, currentResumeUrl, className }: R
     const [fileName, setFileName] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    const { user } = useStore();
+
     const handleUpload = async (file: File) => {
+        // Ensure user is synced before upload
+        if (!user) {
+            setError('Waiting for account sync... Please try again in a moment.');
+            return;
+        }
+
         // Validate file type
         if (file.type !== 'application/pdf') {
             setError('Only PDF files are allowed');
